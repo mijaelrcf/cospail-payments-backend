@@ -1,4 +1,4 @@
-﻿namespace Application.DTOs.BancoEconomico;
+﻿namespace Application.DTOs.BancoEconomico.Responses;
 
 /// <summary>
 /// Respuesta de generación de QR del Banco Económico.

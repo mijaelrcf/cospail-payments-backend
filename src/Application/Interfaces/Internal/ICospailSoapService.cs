@@ -1,7 +1,7 @@
-﻿using Application.DTOs.Cospail;
-using CospailPaymentApi.Application.DTOs.Cospail;
+﻿using Application.DTOs.Cospail.Requests;
+using Application.DTOs.Cospail.Responses;
 
-namespace Application.Interfaces.Services;
+namespace Application.Interfaces.Internal;
 
 /// <summary>
 /// Servicio de aplicación para consultas relacionadas a Cospail.
@@ -16,6 +16,11 @@ public interface ICospailSoapService
     Task<GetMemberDebtByDocumentResponse> GetMemberDebtByDocumentAsync(
         int fixedCode,
         string documentId,
+        CancellationToken cancellationToken = default
+    );
+
+    Task<ConfirmPaymentResponseDto> ConfirmPaymentAsync(
+        ConfirmPaymentRequestDto request,
         CancellationToken cancellationToken = default
     );
 }

@@ -1,5 +1,5 @@
-﻿using Application.DTOs.Cospail;
-using CospailPaymentApi.Application.DTOs.Cospail;
+﻿using Application.DTOs.Cospail.Requests;
+using Application.DTOs.Cospail.Responses;
 
 namespace Application.Interfaces.External;
 
@@ -16,6 +16,11 @@ public interface ICospailSoapClient
     Task<GetMemberDebtByDocumentResponse> GetMemberDebtByDocumentAsync(
         int fixedCode,
         string documentId,
+        CancellationToken cancellationToken = default
+    );
+
+    Task<RecordPaymentResponseDto> RecordPaymentAsync(
+        RecordPaymentRequestDto requestDto,
         CancellationToken cancellationToken = default
     );
 }

@@ -1,4 +1,4 @@
-﻿namespace Application.DTOs.BancoEconomico;
+﻿namespace Application.DTOs.BancoEconomico.Requests;
 
 /// <summary>
 /// Request para autenticación en Banco Económico.

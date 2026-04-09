@@ -1,7 +1,7 @@
-﻿
-using Application.DTOs.BancoEconomico;
+﻿using Application.DTOs.BancoEconomico.Requests;
+using Application.DTOs.BancoEconomico.Responses;
 
-namespace Application.Interfaces.Services;
+namespace Application.Interfaces.Internal;
 
 /// <summary>
 /// Servicio de aplicación para operaciones de pago.

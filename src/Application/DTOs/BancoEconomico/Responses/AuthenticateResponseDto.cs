@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Application.DTOs.BancoEconomico;
+namespace Application.DTOs.BancoEconomico.Responses;
 
 /// <summary>
 /// Response de autenticación de Banco Económico.

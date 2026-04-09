@@ -1,4 +1,4 @@
-﻿namespace Application.DTOs.Cospail;
+﻿namespace Application.DTOs.Cospail.Responses;
 
 /// <summary>
 /// Representa la deuda obtenida desde el servicio SOAP de Cospail.

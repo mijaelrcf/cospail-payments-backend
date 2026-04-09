@@ -1,4 +1,6 @@
-﻿namespace CospailPaymentApi.Application.DTOs.Cospail;
+﻿using Application.DTOs.Cospail.Common;
+
+namespace Application.DTOs.Cospail.Responses;
 
 public sealed class GetMemberDebtByDocumentResponse
 {

@@ -1,6 +1,7 @@
-﻿using Application.DTOs.BancoEconomico;
+﻿using Application.DTOs.BancoEconomico.Requests;
+using Application.DTOs.BancoEconomico.Responses;
 using Application.Interfaces.External;
-using Application.Interfaces.Services;
+using Application.Interfaces.Internal;
 using Microsoft.Extensions.Logging;
 
 namespace Application.Services;
@@ -15,7 +16,8 @@ public sealed class BancoEconomicoService : IBancoEconomicoService
 
     public BancoEconomicoService(
         IBancoEconomicoQrClient bancoEconomicoQrClient,
-        ILogger<BancoEconomicoService> logger)
+        ILogger<BancoEconomicoService> logger
+    )
     {
         _bancoEconomicoQrClient = bancoEconomicoQrClient;
         _logger = logger;
@@ -25,7 +27,8 @@ public sealed class BancoEconomicoService : IBancoEconomicoService
     /// Autentica contra Banco Económico.
     /// </summary>
     public async Task<AuthenticateResponseDto> AuthenticateAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         return await _bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
     }
@@ -35,24 +38,28 @@ public sealed class BancoEconomicoService : IBancoEconomicoService
     /// </summary>
     public async Task<GenerateQrResponseDto> GenerateQrAsync(
         GenerateQrRequestDto request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         _logger.LogInformation(
             "Solicitando generación de QR. TransactionId: {TransactionId}",
-            request.TransactionId);
+            request.TransactionId
+        );
 
         var auth = await _bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
 
         if (string.IsNullOrWhiteSpace(auth.Token))
         {
             throw new InvalidOperationException(
-                "No se recibió token de autenticación desde Banco Económico.");
+                "No se recibió token de autenticación desde Banco Económico."
+            );
         }
 
         var response = await _bancoEconomicoQrClient.GenerateQrAsync(
             auth.Token,
             request,
-            cancellationToken);
+            cancellationToken
+        );
 
         return response;
     }

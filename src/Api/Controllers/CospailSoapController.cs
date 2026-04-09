@@ -1,5 +1,6 @@
-﻿using Application.Interfaces.Services;
-using CospailPaymentApi.Application.DTOs.Cospail;
+﻿using Application.DTOs.Cospail.Responses;
+using Application.DTOs.Cospail.Requests;
+using Application.Interfaces.Internal;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
@@ -52,6 +53,25 @@ public class CospailSoapController : ControllerBase
             fixedCode,
             documentId,
             cancellationToken);
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Consulta la deuda de un socio mediante código fijo y documento de identidad o NIT.
+    /// </summary>
+    /// <param name="fixedCode">Código fijo del socio.</param>
+    /// <param name="documentId">Documento de Identidad o NIT.</param>
+    [HttpPost("payments/confirm")]
+    public async Task<IActionResult> ConfirmPayment(
+        [FromBody] ConfirmPaymentRequestDto request,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await _cospailService.ConfirmPaymentAsync(
+            request,
+            cancellationToken
+        );
 
         return Ok(result);
     }

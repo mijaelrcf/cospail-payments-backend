@@ -1,7 +1,8 @@
 ﻿using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Application.DTOs.BancoEconomico;
+using Application.DTOs.BancoEconomico.Requests;
+using Application.DTOs.BancoEconomico.Responses;
 using Application.Interfaces.External;
 using Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;

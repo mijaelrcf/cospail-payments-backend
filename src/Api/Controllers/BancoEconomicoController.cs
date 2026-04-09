@@ -1,6 +1,6 @@
-﻿using Application.DTOs.BancoEconomico;
-using Application.Interfaces.External;
-using Application.Interfaces.Services;
+﻿using Application.DTOs.BancoEconomico.Requests;
+using Application.DTOs.BancoEconomico.Responses;
+using Application.Interfaces.Internal;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;

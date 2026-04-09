@@ -1,4 +1,5 @@
-﻿using Application.DTOs.BancoEconomico;
+﻿using Application.DTOs.BancoEconomico.Requests;
+using Application.DTOs.BancoEconomico.Responses;
 
 namespace Application.Interfaces.External;
 
