@@ -20,4 +20,11 @@ public interface IBancoEconomicoService
     Task<GenerateQrResponseDto> GenerateQrAsync(
         GenerateQrRequestDto request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Procesa la notificación de estado de un pago enviada por Banco Económico.
+    /// </summary>
+    Task<NotifyPaymentQrResponseDto> HandlePaymentNotificationAsync(
+        NotifyPaymentQrRequestDto request,
+        CancellationToken cancellationToken = default);
 }
