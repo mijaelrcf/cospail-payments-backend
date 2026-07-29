@@ -2,6 +2,8 @@
 using Infrastructure.Configuration;
 using Infrastructure.ExternalServices.BancoEconomico;
 using Infrastructure.ExternalServices.Cospail;
+using Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,6 +19,18 @@ public static class DependencyInjection
         IConfiguration configuration
     )
     {
+        var connectionString = configuration.GetConnectionString("PaymentsDatabase");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "La cadena de conexión 'ConnectionStrings:PaymentsDatabase' es obligatoria."
+            );
+        }
+
+        services.AddDbContext<PaymentsDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddScoped<Application.Interfaces.Persistence.IPagoQrRepository, PagoQrRepository>();
+
         services.Configure<CospailSoapOptions>(
             configuration.GetSection(CospailSoapOptions.SectionName)
         );

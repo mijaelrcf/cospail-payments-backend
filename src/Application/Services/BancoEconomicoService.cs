@@ -1,7 +1,9 @@
-﻿using Application.DTOs.BancoEconomico.Requests;
+using Application.DTOs.BancoEconomico.Requests;
 using Application.DTOs.BancoEconomico.Responses;
 using Application.Interfaces.External;
 using Application.Interfaces.Internal;
+using Application.Interfaces.Persistence;
+using Domain.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace Application.Services;
@@ -9,45 +11,37 @@ namespace Application.Services;
 /// <summary>
 /// Servicio de aplicación para operaciones con Banco Económico.
 /// </summary>
-public sealed class BancoEconomicoService : IBancoEconomicoService
+public sealed class BancoEconomicoService(
+    IBancoEconomicoQrClient bancoEconomicoQrClient,
+    IPagoQrRepository pagoQrRepository,
+    ILogger<BancoEconomicoService> logger
+) : IBancoEconomicoService
 {
     private static readonly string[] ValidCurrencies = ["BOB", "USD"];
-    private readonly IBancoEconomicoQrClient _bancoEconomicoQrClient;
-    private readonly ILogger<BancoEconomicoService> _logger;
 
-    public BancoEconomicoService(
-        IBancoEconomicoQrClient bancoEconomicoQrClient,
-        ILogger<BancoEconomicoService> logger
-    )
-    {
-        _bancoEconomicoQrClient = bancoEconomicoQrClient;
-        _logger = logger;
-    }
+    /// <inheritdoc />
+    public Task<AuthenticateResponseDto> AuthenticateAsync(CancellationToken cancellationToken = default) =>
+        bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
 
-    /// <summary>
-    /// Autentica contra Banco Económico.
-    /// </summary>
-    public async Task<AuthenticateResponseDto> AuthenticateAsync(
-        CancellationToken cancellationToken = default
-    )
-    {
-        return await _bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// Genera un código QR en Banco Económico.
-    /// </summary>
+    /// <inheritdoc />
     public async Task<GenerateQrResponseDto> GenerateQrAsync(
         GenerateQrRequestDto request,
         CancellationToken cancellationToken = default
     )
     {
-        _logger.LogInformation(
+        ValidateGenerateQrRequest(request);
+
+        if (await pagoQrRepository.GetByTransactionIdAsync(request.TransactionId, cancellationToken) is not null)
+        {
+            throw new ArgumentException("Ya existe un QR registrado para el transactionId proporcionado.");
+        }
+
+        logger.LogInformation(
             "Solicitando generación de QR. TransactionId: {TransactionId}",
             request.TransactionId
         );
 
-        var auth = await _bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
+        var auth = await bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
 
         if (string.IsNullOrWhiteSpace(auth.Token))
         {
@@ -56,26 +50,43 @@ public sealed class BancoEconomicoService : IBancoEconomicoService
             );
         }
 
-        var response = await _bancoEconomicoQrClient.GenerateQrAsync(
+        var response = await bancoEconomicoQrClient.GenerateQrAsync(
             auth.Token,
             request,
             cancellationToken
         );
 
+        if (string.IsNullOrWhiteSpace(response.QrId))
+        {
+            throw new InvalidOperationException("Banco Económico no devolvió un qrId para el QR generado.");
+        }
+
+        var pagoQr = new PagoQr(
+            request.TransactionId.Trim(),
+            response.QrId.Trim(),
+            request.Amount,
+            request.Currency,
+            DateOnly.Parse(request.DueDate),
+            request.SingleUse,
+            request.ModifyAmount,
+            request.Description?.Trim(),
+            request.BranchCode?.Trim(),
+            DateTime.UtcNow
+        );
+
+        await pagoQrRepository.AddAsync(pagoQr, cancellationToken);
         return response;
     }
 
-    /// <summary>
-    /// Procesa la notificación del pago de un QR recibida desde Banco Económico.
-    /// </summary>
-    public Task<NotifyPaymentQrResponseDto> HandlePaymentNotificationAsync(
+    /// <inheritdoc />
+    public async Task<NotifyPaymentQrResponseDto> HandlePaymentNotificationAsync(
         NotifyPaymentQrRequestDto request,
         CancellationToken cancellationToken = default
     )
     {
         var payment = ValidatePaymentNotificationRequest(request);
 
-        using var scope = _logger.BeginScope(
+        using var scope = logger.BeginScope(
             new Dictionary<string, object>
             {
                 ["QrId"] = payment.QrId,
@@ -86,22 +97,64 @@ public sealed class BancoEconomicoService : IBancoEconomicoService
             }
         );
 
-        _logger.LogInformation(
-            "Notificación de pago QR recibida desde Banco Económico. SenderBankCode: {SenderBankCode}, SenderName: {SenderName}, SenderAccount: {SenderAccount}",
-            payment.SenderBankCode,
-            payment.SenderName,
-            payment.SenderAccount
-        );
+        logger.LogInformation("Notificación de pago QR recibida desde Banco Económico.");
 
-        // Punto de extensión para fase 2: mapear esta notificación a un comando interno
-        // y confirmar el pago en Cospail con idempotencia/persistencia.
-        var response = new NotifyPaymentQrResponseDto
+        var pagoQr = await pagoQrRepository.GetByQrIdAsync(payment.QrId.Trim(), cancellationToken);
+
+        if (pagoQr is null)
+        {
+            throw new ArgumentException("No existe un QR registrado para payment.qrId.");
+        }
+
+        if (!string.Equals(pagoQr.TransactionId, payment.TransactionId.Trim(), StringComparison.Ordinal))
+        {
+            throw new ArgumentException("payment.transactionId no coincide con el QR registrado.");
+        }
+
+        if (pagoQr.Status == PagoQrStatus.Pendiente)
+        {
+            pagoQr.MarkAsPaid(ParsePaymentDateTimeUtc(payment.PaymentDate, payment.PaymentTime));
+            await pagoQrRepository.UpdateAsync(pagoQr, cancellationToken);
+        }
+
+        return new NotifyPaymentQrResponseDto
         {
             ResponseCode = 0,
             Message = string.Empty
         };
+    }
 
-        return Task.FromResult(response);
+    private static void ValidateGenerateQrRequest(GenerateQrRequestDto request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (string.IsNullOrWhiteSpace(request.TransactionId))
+        {
+            throw new ArgumentException("transactionId es requerido.");
+        }
+
+        if (request.Amount <= 0)
+        {
+            throw new ArgumentException("amount debe ser mayor a cero.");
+        }
+
+        var currency = request.Currency?.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(currency) || !ValidCurrencies.Contains(currency))
+        {
+            throw new ArgumentException("currency debe ser BOB o USD.");
+        }
+
+        request.Currency = currency;
+
+        if (!DateOnly.TryParse(request.DueDate, out _))
+        {
+            throw new ArgumentException("dueDate no tiene un formato válido.");
+        }
+
+        if (request.BranchCode?.Length > 5)
+        {
+            throw new ArgumentException("branchCode no puede exceder 5 caracteres.");
+        }
     }
 
     private static NotifyPaymentQrRequestDto.PaymentDto ValidatePaymentNotificationRequest(
@@ -127,19 +180,9 @@ public sealed class BancoEconomicoService : IBancoEconomicoService
             throw new ArgumentException("payment.transactionId es requerido.");
         }
 
-        if (string.IsNullOrWhiteSpace(payment.PaymentDate))
-        {
-            throw new ArgumentException("payment.paymentDate es requerido.");
-        }
-
-        if (!DateTime.TryParse(payment.PaymentDate, out _))
+        if (!DateOnly.TryParse(payment.PaymentDate, out _))
         {
             throw new ArgumentException("payment.paymentDate no tiene un formato válido.");
-        }
-
-        if (string.IsNullOrWhiteSpace(payment.PaymentTime))
-        {
-            throw new ArgumentException("payment.paymentTime es requerido.");
         }
 
         if (!TimeOnly.TryParse(payment.PaymentTime, out _))
@@ -147,14 +190,8 @@ public sealed class BancoEconomicoService : IBancoEconomicoService
             throw new ArgumentException("payment.paymentTime no tiene un formato válido.");
         }
 
-        if (string.IsNullOrWhiteSpace(payment.Currency))
-        {
-            throw new ArgumentException("payment.currency es requerido.");
-        }
-
-        var normalizedCurrency = payment.Currency.Trim().ToUpperInvariant();
-
-        if (!ValidCurrencies.Contains(normalizedCurrency))
+        var normalizedCurrency = payment.Currency?.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(normalizedCurrency) || !ValidCurrencies.Contains(normalizedCurrency))
         {
             throw new ArgumentException("payment.currency debe ser BOB o USD.");
         }
@@ -192,5 +229,15 @@ public sealed class BancoEconomicoService : IBancoEconomicoService
         }
 
         return payment;
+    }
+
+    private static DateTime ParsePaymentDateTimeUtc(string paymentDate, string paymentTime)
+    {
+        var date = DateOnly.Parse(paymentDate);
+        var time = TimeOnly.Parse(paymentTime);
+        var localPaymentDateTime = date.ToDateTime(time, DateTimeKind.Unspecified);
+
+        // Banco Económico reporta la fecha y hora local de Bolivia (UTC-04:00).
+        return new DateTimeOffset(localPaymentDateTime, TimeSpan.FromHours(-4)).UtcDateTime;
     }
 }
