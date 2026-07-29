@@ -127,6 +127,8 @@ vencimiento indicados por el consumidor.
   elegir la cuenta destino.
 - Si el banco responde HTTP exitoso y `responseCode: 0`, se devuelve el QR,
   incluyendo `qrId` y, cuando el banco lo entregue, `qrImage`.
+- Tras una emisión exitosa, se registra el QR con estado `Pendiente`, fecha y
+  hora UTC de creación, e identificadores únicos `transactionId` y `qrId`.
 - Errores HTTP, errores de deserialización y códigos funcionales distintos de
   cero se devuelven como `500`.
 
@@ -150,6 +152,10 @@ Económico.
 - Un error no controlado devuelve `responseCode: 99` y un mensaje genérico.
 - Una entrada válida devuelve `responseCode: 0` y mensaje vacío.
 - `senderDocumentId` se recibe pero no se valida ni se utiliza actualmente.
+- Para un QR pendiente cuyo `transactionId` coincide, la notificación lo marca
+  como `Pagado` y conserva la fecha/hora de pago en UTC. Las repeticiones de
+  una notificación ya procesada son idempotentes.
+- Un QR inexistente o un `transactionId` no coincidente devuelve `responseCode: 1`.
 
 ### SPEC-007 — Verificar disponibilidad de la API
 
@@ -176,9 +182,6 @@ ejecución.
 
 - **SPEC-FUT-001 — Confirmación automática tras callback QR.** El callback
   válido solo se valida, registra y acusa. No llama a `grabarCobrosWEB`.
-- **SPEC-FUT-002 — Idempotencia y persistencia de QR.** No existe persistencia
-  de solicitudes QR ni mecanismo para impedir que una misma notificación se
-  procese más de una vez.
 - **SPEC-FUT-003 — Conciliación QR.** No se relaciona actualmente
   `transactionId`/`qrId` con una deuda COSPAIL antes de acreditar el pago.
 

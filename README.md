@@ -32,13 +32,14 @@ Flujos principales:
 
 1. Consulta y confirmación: el API consulta la deuda en COSPAIL; antes de registrar el pago valida socio, documento, crédito, tipo e importe.
 2. Generación QR: el API se autentica con Banco Económico usando las credenciales del servidor, obtiene un token Bearer y solicita el QR. La respuesta contiene `qrImage`.
-3. Notificación QR: Banco Económico llama a `POST /api/qrsimple/notifyPaymentQR`. Actualmente la notificación se valida y se acusa, pero la confirmación automática/persistente en COSPAIL está marcada como trabajo de fase 2.
+3. Notificación QR: Banco Económico llama a `POST /api/qrsimple/notifyPaymentQR`. El QR pendiente se marca como pagado de forma idempotente; la acreditación automática en COSPAIL permanece como trabajo de una fase posterior.
 
 ## Requisitos
 
 - .NET SDK 10.0 o superior.
 - Acceso de red a los servicios de COSPAIL y Banco Económico.
 - Credenciales válidas de ambos proveedores.
+- PostgreSQL 18.4 (o una versión compatible) para la persistencia de QR.
 
 ## Configuración
 
@@ -55,6 +56,7 @@ $env:ExternalServices__BanEcoApi__BaseUrl = 'https://apimktdesa.baneco.com.bo/Ap
 $env:ExternalServices__BanEcoApi__UserName = 'USUARIO_BANECO'
 $env:ExternalServices__BanEcoApi__EncryptedPassword = 'PASSWORD_CIFRADO_ENTREGADO_POR_BANECO'
 $env:ExternalServices__BanEcoApi__AccountCredit = 'CUENTA_CIFRADA_O_CONFIGURADA_POR_BANECO'
+$env:ConnectionStrings__PaymentsDatabase = 'Host=localhost;Port=5432;Database=cospail_payments;Username=postgres;Password=TU_PASSWORD'
 ```
 
 También pueden guardarse como secretos de desarrollo:
@@ -68,9 +70,32 @@ dotnet user-secrets set "ExternalServices:BanEcoApi:BaseUrl" "https://apimktdesa
 dotnet user-secrets set "ExternalServices:BanEcoApi:UserName" "USUARIO_BANECO" --project src/Api
 dotnet user-secrets set "ExternalServices:BanEcoApi:EncryptedPassword" "PASSWORD_CIFRADO_BANECO" --project src/Api
 dotnet user-secrets set "ExternalServices:BanEcoApi:AccountCredit" "CUENTA_BANECO" --project src/Api
+dotnet user-secrets set "ConnectionStrings:PaymentsDatabase" "Host=localhost;Port=5432;Database=cospail_payments;Username=postgres;Password=TU_PASSWORD" --project src/Api
 ```
 
 `CospailSoap:Login` y `CospailSoap:Password` forman parte de la configuración, aunque el cliente SOAP actual no los incluye en el sobre SOAP. `AccountCredit` recibido en la solicitud de QR es reemplazado por el valor configurado en el servidor.
+
+### Migraciones PostgreSQL
+
+La aplicación valida que exista `ConnectionStrings:PaymentsDatabase`, pero no crea ni migra la base automáticamente. Instala una versión 10.x de `dotnet-ef` y aplica las migraciones explícitamente:
+
+```powershell
+dotnet tool install --global dotnet-ef --version 10.*
+dotnet ef database update --project src/Infrastructure --startup-project src/Api
+```
+
+Para generar una migración futura:
+
+```powershell
+dotnet ef migrations add NombreDeLaMigracion --project src/Infrastructure --startup-project src/Api --output-dir Persistence/Migrations
+```
+
+Las pruebas de integración no usan una base por defecto. Para ejecutarlas contra una base de pruebas aislada:
+
+```powershell
+$env:PAYMENTS_TEST_CONNECTION_STRING = 'Host=localhost;Port=5432;Database=cospail_payments_test;Username=postgres;Password=TU_PASSWORD'
+dotnet test tests/Payments.Tests/Payments.Tests.csproj
+```
 
 ## Ejecución rápida
 
