@@ -112,8 +112,6 @@ public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
             request.Currency
         );
 
-        _logger.LogInformation("Account Credit: {AccountCredit}", _options.AccountCredit);
-
         request.AccountCredit = _options.AccountCredit;
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "api/qrsimple/generateQR")

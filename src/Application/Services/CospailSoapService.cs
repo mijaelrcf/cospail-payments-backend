@@ -88,7 +88,7 @@ public class CospailSoapService : ICospailSoapService
             );
         }
 
-        var paymentDateTime = DateTime.Now;
+        var paymentDateTime = DateTime.UtcNow;
 
         var recordPaymentResponse = await _cospailSoapClient.RecordPaymentAsync(
             new RecordPaymentRequestDto

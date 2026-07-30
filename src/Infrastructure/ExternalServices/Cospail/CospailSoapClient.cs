@@ -127,7 +127,7 @@ public class CospailSoapClient : ICospailSoapClient
                 responseContent
             );
 
-            throw new Exception($"No se pudo consumir la operación SOAP {operationName}.");
+            throw new InvalidOperationException($"No se pudo consumir la operación SOAP {operationName}.");
         }
 
         return responseContent;
