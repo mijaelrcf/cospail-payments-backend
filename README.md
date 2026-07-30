@@ -2,7 +2,7 @@
 
 Web API en **.NET 10** que centraliza la consulta y el registro de cobros de COSPAIL, y la emisión de cobros QR a través de Banco Económico.
 
-El contrato HTTP completo se encuentra en [docs/openapi.yaml](docs/openapi.yaml) (OpenAPI 3.0.3).
+La especificación OpenAPI se genera automáticamente con Swagger y está disponible en `/swagger` al ejecutar la aplicación en modo Development.
 
 ## Arquitectura
 
@@ -102,10 +102,10 @@ dotnet test tests/Payments.Tests/Payments.Tests.csproj
 ```powershell
 dotnet restore
 dotnet build
-dotnet run --project src/Api
+dotnet run --project src/Api --launch-profile https
 ```
 
-En el entorno `Development`, Swagger queda disponible en `/swagger`. La política CORS actual permite únicamente `http://localhost:5173`; ajuste `FrontendPolicy` en `src/Api/Program.cs` si el frontend se ejecuta en otro origen.
+En el entorno `Development`, Swagger queda disponible en `/swagger`. Si prefieres HTTP, usa `--launch-profile http`. La política CORS actual permite únicamente `http://localhost:5173`; ajuste `FrontendPolicy` en `src/Api/Program.cs` si el frontend se ejecuta en otro origen.
 
 ## Endpoints
 
@@ -120,8 +120,4 @@ En el entorno `Development`, Swagger queda disponible en `/swagger`. La polític
 
 Los errores globales se entregan como `application/problem+json`: 400 para argumentos inválidos, 404 para recursos no encontrados y 500 para errores no controlados. El callback QR es la excepción: siempre devuelve 200 y utiliza `responseCode` (`0`, `1` o `99`).
 
-## Especificaciones de la API
 
-El contrato y los detalles técnicos de los endpoints para la integración con **COSPAIL** y el **Banco Económico** se encuentran definidos en el estándar OpenAPI.
-
-Puedes consultar el archivo de especificación directamente aquí: [Ver especificación openapi.yaml](./docs/openapi.yaml).
