@@ -1,5 +1,5 @@
-﻿using Application.DTOs.Cospail.Responses;
-using Application.DTOs.Cospail.Requests;
+﻿using Application.DTOs.Cospail.Requests;
+using Application.DTOs.Cospail.Responses;
 using Application.Interfaces.Internal;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,6 +21,7 @@ public class CospailSoapController : ControllerBase
     /// </summary>
     /// <param name="fixedCode">Código fijo del socio.</param>
     [HttpGet("debt/{fixedCode:int}")]
+    [ProducesResponseType(typeof(CospailDebtResponseDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDebt(int fixedCode, CancellationToken cancellationToken)
     {
         var result = await _cospailService.GetDebtAsync(fixedCode, cancellationToken);
@@ -35,9 +36,10 @@ public class CospailSoapController : ControllerBase
     [HttpGet("member-debt-by-document")]
     [ProducesResponseType(typeof(GetMemberDebtByDocumentResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMemberDebtByDocument(
-       [FromQuery] int fixedCode,
-       [FromQuery] string documentId,
-       CancellationToken cancellationToken)
+        [FromQuery] int fixedCode,
+        [FromQuery] string documentId,
+        CancellationToken cancellationToken
+    )
     {
         if (fixedCode <= 0)
         {
@@ -52,7 +54,8 @@ public class CospailSoapController : ControllerBase
         var result = await _cospailService.GetMemberDebtByDocumentAsync(
             fixedCode,
             documentId,
-            cancellationToken);
+            cancellationToken
+        );
 
         return Ok(result);
     }
@@ -63,15 +66,13 @@ public class CospailSoapController : ControllerBase
     /// <param name="fixedCode">Código fijo del socio.</param>
     /// <param name="documentId">Documento de Identidad o NIT.</param>
     [HttpPost("payments/confirm")]
+    [ProducesResponseType(typeof(ConfirmPaymentResponseDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> ConfirmPayment(
         [FromBody] ConfirmPaymentRequestDto request,
         CancellationToken cancellationToken
     )
     {
-        var result = await _cospailService.ConfirmPaymentAsync(
-            request,
-            cancellationToken
-        );
+        var result = await _cospailService.ConfirmPaymentAsync(request, cancellationToken);
 
         return Ok(result);
     }
