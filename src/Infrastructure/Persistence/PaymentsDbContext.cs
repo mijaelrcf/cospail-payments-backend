@@ -1,3 +1,4 @@
+using Application.Interfaces.Persistence;
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,7 +7,9 @@ namespace Infrastructure.Persistence;
 /// <summary>
 /// Contexto de persistencia para los cobros QR de la aplicación.
 /// </summary>
-public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options) : DbContext(options)
+public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options)
+    : DbContext(options),
+        IPaymentsDbContext
 {
     /// <summary>
     /// QR de cobro emitidos por Banco Económico.

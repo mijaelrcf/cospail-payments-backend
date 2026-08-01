@@ -1,6 +1,7 @@
 using Api.Middleware;
 using Application.DependencyInjection;
 using Infrastructure.DependencyInjection;
+using Infrastructure.Persistence;
 using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,6 +31,9 @@ builder
     });
 
 //Add Cors policy to allow frontend access
+var allowedOrigins =
+    builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+
 builder
     .Services
     .AddCors(options =>
@@ -38,7 +42,10 @@ builder
             "FrontendPolicy",
             policy =>
             {
-                policy.WithOrigins("http://localhost:5173").AllowAnyHeader().AllowAnyMethod();
+                policy
+                    .WithOrigins(allowedOrigins)
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
             }
         );
     });
@@ -46,6 +53,9 @@ builder
 // Registrar capas
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Health checks: verifica conectividad con la base de datos
+builder.Services.AddHealthChecks().AddDbContextCheck<PaymentsDbContext>("database");
 
 var app = builder.Build();
 
@@ -66,5 +76,6 @@ app.UseCors("FrontendPolicy");
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 app.Run();

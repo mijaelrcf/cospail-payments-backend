@@ -4,6 +4,7 @@ using Application.Interfaces.External;
 using Application.Interfaces.Internal;
 using Application.Interfaces.Persistence;
 using Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Application.Services;
@@ -13,7 +14,7 @@ namespace Application.Services;
 /// </summary>
 public sealed class BancoEconomicoService(
     IBancoEconomicoQrClient bancoEconomicoQrClient,
-    IPagoQrRepository pagoQrRepository,
+    IPaymentsDbContext dbContext,
     ILogger<BancoEconomicoService> logger
 ) : IBancoEconomicoService
 {
@@ -31,7 +32,7 @@ public sealed class BancoEconomicoService(
     {
         ValidateGenerateQrRequest(request);
 
-        if (await pagoQrRepository.GetByTransactionIdAsync(request.TransactionId, cancellationToken) is not null)
+        if (await dbContext.PagosQr.SingleOrDefaultAsync(x => x.TransactionId == request.TransactionId, cancellationToken) is not null)
         {
             throw new ArgumentException("Ya existe un QR registrado para el transactionId proporcionado.");
         }
@@ -74,7 +75,8 @@ public sealed class BancoEconomicoService(
             DateTime.UtcNow
         );
 
-        await pagoQrRepository.AddAsync(pagoQr, cancellationToken);
+        dbContext.PagosQr.Add(pagoQr);
+        await dbContext.SaveChangesAsync(cancellationToken);
         return response;
     }
 
@@ -99,7 +101,7 @@ public sealed class BancoEconomicoService(
 
         logger.LogInformation("Notificación de pago QR recibida desde Banco Económico.");
 
-        var pagoQr = await pagoQrRepository.GetByQrIdAsync(payment.QrId.Trim(), cancellationToken);
+        var pagoQr = await dbContext.PagosQr.SingleOrDefaultAsync(x => x.QrId == payment.QrId.Trim(), cancellationToken);
 
         if (pagoQr is null)
         {
@@ -114,7 +116,7 @@ public sealed class BancoEconomicoService(
         if (pagoQr.Status == PagoQrStatus.Pendiente)
         {
             pagoQr.MarkAsPaid(ParsePaymentDateTimeUtc(payment.PaymentDate, payment.PaymentTime));
-            await pagoQrRepository.UpdateAsync(pagoQr, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
 
         return new NotifyPaymentQrResponseDto

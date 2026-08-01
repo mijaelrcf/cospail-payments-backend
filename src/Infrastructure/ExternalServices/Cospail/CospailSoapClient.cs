@@ -106,7 +106,7 @@ public class CospailSoapClient : ICospailSoapClient
     {
         var soapEnvelope = BuildSoapEnvelope(operationName, parameters);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, _options.BaseUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Post, (Uri?)null);
         request.Headers.Add("SOAPAction", $"\"{ServiceNamespace}{operationName}\"");
         request.Content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
 

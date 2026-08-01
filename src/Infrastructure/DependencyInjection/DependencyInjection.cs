@@ -1,4 +1,5 @@
 ﻿using Application.Interfaces.External;
+using Application.Interfaces.Persistence;
 using Infrastructure.Configuration;
 using Infrastructure.ExternalServices.BancoEconomico;
 using Infrastructure.ExternalServices.Cospail;
@@ -29,7 +30,9 @@ public static class DependencyInjection
         }
 
         services.AddDbContext<PaymentsDbContext>(options => options.UseNpgsql(connectionString));
-        services.AddScoped<Application.Interfaces.Persistence.IPagoQrRepository, PagoQrRepository>();
+        services.AddScoped<IPaymentsDbContext>(provider =>
+            provider.GetRequiredService<PaymentsDbContext>()
+        );
 
         services.Configure<CospailSoapOptions>(
             configuration.GetSection(CospailSoapOptions.SectionName)
@@ -39,7 +42,16 @@ public static class DependencyInjection
             configuration.GetSection(BancoEconomicoOptions.SectionName)
         );
 
-        services.AddHttpClient<ICospailSoapClient, CospailSoapClient>();
+        services.AddHttpClient<ICospailSoapClient, CospailSoapClient>(
+            (serviceProvider, client) =>
+            {
+                var options = serviceProvider
+                    .GetRequiredService<Microsoft.Extensions.Options.IOptions<CospailSoapOptions>>()
+                    .Value;
+
+                client.BaseAddress = new Uri(options.BaseUrl);
+            }
+        );
 
         services.AddHttpClient<IBancoEconomicoQrClient, BancoEconomicoQrClient>(
             (serviceProvider, client) =>

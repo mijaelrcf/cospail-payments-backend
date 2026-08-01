@@ -54,7 +54,7 @@ public sealed class PaymentsDbContextTests
         stored.Status.Should().Be(PagoQrStatus.Pendiente);
         stored.CreatedAtUtc.Kind.Should().Be(DateTimeKind.Utc);
 
-        context.PagosQr.Remove(stored);
-        await context.SaveChangesAsync();
+        //context.PagosQr.Remove(stored);
+        //await context.SaveChangesAsync();
     }
 }
