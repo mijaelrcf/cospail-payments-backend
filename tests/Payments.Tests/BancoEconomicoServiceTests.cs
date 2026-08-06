@@ -2,6 +2,7 @@ using Application.DTOs.BancoEconomico.Requests;
 using Application.DTOs.BancoEconomico.Responses;
 using Application.Interfaces.External;
 using Application.Services;
+using Application.Validators;
 using Domain.Entities;
 using FluentAssertions;
 using Infrastructure.Persistence;
@@ -19,7 +20,7 @@ public sealed class BancoEconomicoServiceTests
     public async Task GenerateQrAsync_WhenBankSucceeds_PersistsPendingQr()
     {
         await using var db = CreateInMemoryDb();
-        var service = new BancoEconomicoService(CreateClient("qr-001").Object, db, NullLogger<BancoEconomicoService>.Instance);
+        var service = CreateService(CreateClient("qr-001"), db);
 
         var result = await service.GenerateQrAsync(CreateGenerateRequest("tx-001"));
 
@@ -37,7 +38,7 @@ public sealed class BancoEconomicoServiceTests
         await using var db = CreateInMemoryDb();
         db.PagosQr.Add(CreatePendingQr());
         await db.SaveChangesAsync();
-        var service = new BancoEconomicoService(CreateClient("qr-001").Object, db, NullLogger<BancoEconomicoService>.Instance);
+        var service = CreateService(CreateClient("qr-001"), db);
 
         var act = () => service.GenerateQrAsync(CreateGenerateRequest("tx-001"));
 
@@ -51,7 +52,7 @@ public sealed class BancoEconomicoServiceTests
         var qr = CreatePendingQr();
         db.PagosQr.Add(qr);
         await db.SaveChangesAsync();
-        var service = new BancoEconomicoService(new Mock<IBancoEconomicoQrClient>().Object, db, NullLogger<BancoEconomicoService>.Instance);
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
 
         var response = await service.HandlePaymentNotificationAsync(CreateNotification());
 
@@ -67,7 +68,7 @@ public sealed class BancoEconomicoServiceTests
     public async Task HandlePaymentNotificationAsync_WhenQrDoesNotExist_ReturnsValidationFailure()
     {
         await using var db = CreateInMemoryDb();
-        var service = new BancoEconomicoService(new Mock<IBancoEconomicoQrClient>().Object, db, NullLogger<BancoEconomicoService>.Instance);
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
 
         var act = () => service.HandlePaymentNotificationAsync(CreateNotification());
 
@@ -80,7 +81,7 @@ public sealed class BancoEconomicoServiceTests
         await using var db = CreateInMemoryDb();
         db.PagosQr.Add(CreatePendingQr());
         await db.SaveChangesAsync();
-        var service = new BancoEconomicoService(new Mock<IBancoEconomicoQrClient>().Object, db, NullLogger<BancoEconomicoService>.Instance);
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
 
         var act = () => service.HandlePaymentNotificationAsync(CreateNotification("another-transaction"));
 
@@ -99,13 +100,25 @@ public sealed class BancoEconomicoServiceTests
         var originalPaidAt = qr.PaidAtUtc;
         db.PagosQr.Add(qr);
         await db.SaveChangesAsync();
-        var service = new BancoEconomicoService(new Mock<IBancoEconomicoQrClient>().Object, db, NullLogger<BancoEconomicoService>.Instance);
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
 
         var response = await service.HandlePaymentNotificationAsync(CreateNotification());
 
         response.ResponseCode.Should().Be(0);
         qr.PaidAtUtc.Should().Be(originalPaidAt);
     }
+
+    private static BancoEconomicoService CreateService(
+        Mock<IBancoEconomicoQrClient> client,
+        PaymentsDbContext db
+    ) =>
+        new(
+            client.Object,
+            db,
+            new GenerateQrRequestDtoValidator(),
+            new NotifyPaymentQrRequestDtoValidator(),
+            NullLogger<BancoEconomicoService>.Instance
+        );
 
     private static PaymentsDbContext CreateInMemoryDb()
     {

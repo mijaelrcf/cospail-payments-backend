@@ -1,6 +1,48 @@
 @Api_HostAddress = http://localhost:5185
 
-GET {{Api_HostAddress}}/weatherforecast/
+GET {{Api_HostAddress}}/health
 Accept: application/json
+
+###
+
+GET {{Api_HostAddress}}/api/CospailSoap/debt/123
+Accept: application/json
+
+###
+
+GET {{Api_HostAddress}}/api/CospailSoap/member-debt-by-document?fixedCode=123&documentId=1234567
+Accept: application/json
+
+###
+
+POST {{Api_HostAddress}}/api/CospailSoap/payments/confirm
+Content-Type: application/json
+
+{
+  "fixedCode": 123,
+  "documentId": "1234567",
+  "creditNumber": 1,
+  "type": 1,
+  "amount": 100.00
+}
+
+###
+
+POST {{Api_HostAddress}}/api/BancoEconomico/authenticate
+Accept: application/json
+
+###
+
+POST {{Api_HostAddress}}/api/BancoEconomico/generate-qr
+Content-Type: application/json
+
+{
+  "transactionId": "tx-001",
+  "currency": "BOB",
+  "amount": 35.50,
+  "dueDate": "2026-07-31",
+  "singleUse": true,
+  "branchCode": "001"
+}
 
 ###

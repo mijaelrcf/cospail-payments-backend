@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace Application.DTOs.BancoEconomico.Responses;
 
 /// <summary>
@@ -7,9 +5,7 @@ namespace Application.DTOs.BancoEconomico.Responses;
 /// </summary>
 public sealed class NotifyPaymentQrResponseDto
 {
-    [JsonPropertyName("responseCode")]
     public int ResponseCode { get; set; }
 
-    [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;
 }

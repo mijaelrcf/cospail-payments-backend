@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Middleware;
 
@@ -21,6 +22,11 @@ public class GlobalExceptionHandler
         try
         {
             await _next(context);
+        }
+        catch (ValidationException ex)
+        {
+            _logger.LogWarning(ex, "Validation error");
+            await WriteValidationProblemDetailsAsync(context, ex);
         }
         catch (ArgumentException ex)
         {
@@ -52,6 +58,28 @@ public class GlobalExceptionHandler
                 "An unexpected error occurred."
             );
         }
+    }
+
+    private static async Task WriteValidationProblemDetailsAsync(
+        HttpContext context,
+        ValidationException ex
+    )
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        context.Response.ContentType = "application/problem+json";
+
+        var problem = new ValidationProblemDetails(
+            ex.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())
+        )
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = "Validation Error",
+            Instance = context.Request.Path
+        };
+
+        await context.Response.WriteAsJsonAsync(problem);
     }
 
     private static async Task WriteProblemDetailsAsync(

@@ -3,7 +3,7 @@
 /// <summary>
 /// Representa la deuda obtenida desde el servicio SOAP de Cospail.
 /// </summary>
-public class CospailDebtResponseDto
+public sealed class CospailDebtResponseDto
 {
     public int FixedCode { get; set; }
     public int? NoticeNumber { get; set; }

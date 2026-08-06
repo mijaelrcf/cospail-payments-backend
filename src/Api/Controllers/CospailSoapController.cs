@@ -20,6 +20,7 @@ public class CospailSoapController : ControllerBase
     /// Consulta la deuda de un socio mediante código fijo.
     /// </summary>
     /// <param name="fixedCode">Código fijo del socio.</param>
+    /// <param name="cancellationToken">Token de cancelación.</param>
     [HttpGet("debt/{fixedCode:int}")]
     [ProducesResponseType(typeof(CospailDebtResponseDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDebt(int fixedCode, CancellationToken cancellationToken)
@@ -33,6 +34,7 @@ public class CospailSoapController : ControllerBase
     /// </summary>
     /// <param name="fixedCode">Código fijo del socio.</param>
     /// <param name="documentId">Documento de Identidad o NIT.</param>
+    /// <param name="cancellationToken">Token de cancelación.</param>
     [HttpGet("member-debt-by-document")]
     [ProducesResponseType(typeof(GetMemberDebtByDocumentResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMemberDebtByDocument(
@@ -61,10 +63,10 @@ public class CospailSoapController : ControllerBase
     }
 
     /// <summary>
-    /// Consulta la deuda de un socio mediante código fijo y documento de identidad o NIT.
+    /// Confirma un pago realizado por un socio ante Cospail.
     /// </summary>
-    /// <param name="fixedCode">Código fijo del socio.</param>
-    /// <param name="documentId">Documento de Identidad o NIT.</param>
+    /// <param name="request">Datos del pago a confirmar.</param>
+    /// <param name="cancellationToken">Token de cancelación.</param>
     [HttpPost("payments/confirm")]
     [ProducesResponseType(typeof(ConfirmPaymentResponseDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> ConfirmPayment(

@@ -1,6 +1,7 @@
 using Application.DTOs.BancoEconomico.Requests;
 using Application.DTOs.BancoEconomico.Responses;
 using Application.Interfaces.Internal;
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
@@ -39,6 +40,15 @@ public sealed class NotifyPaymentQrController : ControllerBase
             );
 
             return Ok(response);
+        }
+        catch (ValidationException ex)
+        {
+            _logger.LogWarning(ex, "Banco Económico envió una notificación QR inválida.");
+            return Ok(new NotifyPaymentQrResponseDto
+            {
+                ResponseCode = 1,
+                Message = ex.Errors.FirstOrDefault()?.ErrorMessage ?? "Solicitud inválida."
+            });
         }
         catch (ArgumentException ex)
         {

@@ -1,5 +1,6 @@
 ﻿using Application.Interfaces.Internal;
 using Application.Services;
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Application.DependencyInjection;
@@ -13,6 +14,8 @@ public static class DependencyInjection
     {
         services.AddScoped<ICospailSoapService, CospailSoapService>();
         services.AddScoped<IBancoEconomicoService, BancoEconomicoService>();
+
+        services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
         return services;
     }

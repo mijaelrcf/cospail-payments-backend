@@ -1,4 +1,5 @@
 ﻿using Application.DTOs.Cospail.Common;
+using Domain.Entities;
 
 namespace Application.DTOs.Cospail.Responses;
 

@@ -4,6 +4,7 @@ using Application.Interfaces.External;
 using Application.Interfaces.Internal;
 using Application.Interfaces.Persistence;
 using Domain.Entities;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -15,11 +16,11 @@ namespace Application.Services;
 public sealed class BancoEconomicoService(
     IBancoEconomicoQrClient bancoEconomicoQrClient,
     IPaymentsDbContext dbContext,
+    IValidator<GenerateQrRequestDto> generateQrValidator,
+    IValidator<NotifyPaymentQrRequestDto> notifyPaymentValidator,
     ILogger<BancoEconomicoService> logger
 ) : IBancoEconomicoService
 {
-    private static readonly string[] ValidCurrencies = ["BOB", "USD"];
-
     /// <inheritdoc />
     public Task<AuthenticateResponseDto> AuthenticateAsync(CancellationToken cancellationToken = default) =>
         bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
@@ -30,7 +31,12 @@ public sealed class BancoEconomicoService(
         CancellationToken cancellationToken = default
     )
     {
-        ValidateGenerateQrRequest(request);
+        ArgumentNullException.ThrowIfNull(request);
+
+        request.TransactionId = request.TransactionId.Trim();
+        request.Currency = request.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
+
+        await generateQrValidator.ValidateAndThrowAsync(request, cancellationToken);
 
         if (await dbContext.PagosQr.SingleOrDefaultAsync(x => x.TransactionId == request.TransactionId, cancellationToken) is not null)
         {
@@ -86,7 +92,16 @@ public sealed class BancoEconomicoService(
         CancellationToken cancellationToken = default
     )
     {
-        var payment = ValidatePaymentNotificationRequest(request);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.Payment is not null)
+        {
+            request.Payment.Currency = request.Payment.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
+        }
+
+        await notifyPaymentValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var payment = request.Payment!;
 
         using var scope = logger.BeginScope(
             new Dictionary<string, object>
@@ -124,113 +139,6 @@ public sealed class BancoEconomicoService(
             ResponseCode = 0,
             Message = string.Empty
         };
-    }
-
-    private static void ValidateGenerateQrRequest(GenerateQrRequestDto request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        if (string.IsNullOrWhiteSpace(request.TransactionId))
-        {
-            throw new ArgumentException("transactionId es requerido.");
-        }
-
-        if (request.Amount <= 0)
-        {
-            throw new ArgumentException("amount debe ser mayor a cero.");
-        }
-
-        var currency = request.Currency?.Trim().ToUpperInvariant();
-        if (string.IsNullOrWhiteSpace(currency) || !ValidCurrencies.Contains(currency))
-        {
-            throw new ArgumentException("currency debe ser BOB o USD.");
-        }
-
-        request.Currency = currency;
-
-        if (!DateOnly.TryParse(request.DueDate, out _))
-        {
-            throw new ArgumentException("dueDate no tiene un formato válido.");
-        }
-
-        if (request.BranchCode?.Length > 5)
-        {
-            throw new ArgumentException("branchCode no puede exceder 5 caracteres.");
-        }
-    }
-
-    private static NotifyPaymentQrRequestDto.PaymentDto ValidatePaymentNotificationRequest(
-        NotifyPaymentQrRequestDto request
-    )
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        if (request.Payment is null)
-        {
-            throw new ArgumentException("payment es requerido.");
-        }
-
-        var payment = request.Payment;
-
-        if (string.IsNullOrWhiteSpace(payment.QrId))
-        {
-            throw new ArgumentException("payment.qrId es requerido.");
-        }
-
-        if (string.IsNullOrWhiteSpace(payment.TransactionId))
-        {
-            throw new ArgumentException("payment.transactionId es requerido.");
-        }
-
-        if (!DateOnly.TryParse(payment.PaymentDate, out _))
-        {
-            throw new ArgumentException("payment.paymentDate no tiene un formato válido.");
-        }
-
-        if (!TimeOnly.TryParse(payment.PaymentTime, out _))
-        {
-            throw new ArgumentException("payment.paymentTime no tiene un formato válido.");
-        }
-
-        var normalizedCurrency = payment.Currency?.Trim().ToUpperInvariant();
-        if (string.IsNullOrWhiteSpace(normalizedCurrency) || !ValidCurrencies.Contains(normalizedCurrency))
-        {
-            throw new ArgumentException("payment.currency debe ser BOB o USD.");
-        }
-
-        payment.Currency = normalizedCurrency;
-
-        if (payment.Amount <= 0)
-        {
-            throw new ArgumentException("payment.amount debe ser mayor a cero.");
-        }
-
-        if (string.IsNullOrWhiteSpace(payment.SenderBankCode))
-        {
-            throw new ArgumentException("payment.senderBankCode es requerido.");
-        }
-
-        if (string.IsNullOrWhiteSpace(payment.SenderName))
-        {
-            throw new ArgumentException("payment.senderName es requerido.");
-        }
-
-        if (string.IsNullOrWhiteSpace(payment.SenderAccount))
-        {
-            throw new ArgumentException("payment.senderAccount es requerido.");
-        }
-
-        if (string.IsNullOrWhiteSpace(payment.Description))
-        {
-            throw new ArgumentException("payment.description es requerido.");
-        }
-
-        if (string.IsNullOrWhiteSpace(payment.BranchCode))
-        {
-            throw new ArgumentException("payment.branchCode es requerido.");
-        }
-
-        return payment;
     }
 
     private static DateTime ParsePaymentDateTimeUtc(string paymentDate, string paymentTime)

@@ -3,21 +3,19 @@ using Application.DTOs.Cospail.Requests;
 using Application.DTOs.Cospail.Responses;
 using Application.Interfaces.External;
 using Application.Interfaces.Internal;
+using Domain.Entities;
+using FluentValidation;
 
 namespace Application.Services;
 
 /// <summary>
 /// Servicio de aplicación que orquesta consultas al servicio de Cospail.
 /// </summary>
-public class CospailSoapService : ICospailSoapService
+public sealed class CospailSoapService(
+    ICospailSoapClient cospailSoapClient,
+    IValidator<ConfirmPaymentRequestDto> confirmPaymentValidator
+) : ICospailSoapService
 {
-    private readonly ICospailSoapClient _cospailSoapClient;
-
-    public CospailSoapService(ICospailSoapClient cospailSoapClient)
-    {
-        _cospailSoapClient = cospailSoapClient;
-    }
-
     public async Task<CospailDebtResponseDto> GetDebtAsync(
         int fixedCode,
         CancellationToken cancellationToken = default
@@ -28,7 +26,7 @@ public class CospailSoapService : ICospailSoapService
             throw new ArgumentException("El código fijo debe ser mayor a cero.");
         }
 
-        return await _cospailSoapClient.GetDebtByFixedCodeAsync(fixedCode, cancellationToken);
+        return await cospailSoapClient.GetDebtByFixedCodeAsync(fixedCode, cancellationToken);
     }
 
     public async Task<GetMemberDebtByDocumentResponse> GetMemberDebtByDocumentAsync(
@@ -42,7 +40,7 @@ public class CospailSoapService : ICospailSoapService
             throw new ArgumentException("El código fijo debe ser mayor a cero.");
         }
 
-        return await _cospailSoapClient.GetMemberDebtByDocumentAsync(
+        return await cospailSoapClient.GetMemberDebtByDocumentAsync(
             fixedCode,
             documentId,
             cancellationToken
@@ -54,7 +52,11 @@ public class CospailSoapService : ICospailSoapService
         CancellationToken cancellationToken = default
     )
     {
-        var debtResponse = await _cospailSoapClient.GetMemberDebtByDocumentAsync(
+        ArgumentNullException.ThrowIfNull(request);
+
+        await confirmPaymentValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var debtResponse = await cospailSoapClient.GetMemberDebtByDocumentAsync(
             request.FixedCode,
             request.DocumentId,
             cancellationToken
@@ -90,7 +92,7 @@ public class CospailSoapService : ICospailSoapService
 
         var paymentDateTime = DateTime.UtcNow;
 
-        var recordPaymentResponse = await _cospailSoapClient.RecordPaymentAsync(
+        var recordPaymentResponse = await cospailSoapClient.RecordPaymentAsync(
             new RecordPaymentRequestDto
             {
                 CreditNumber = request.CreditNumber,

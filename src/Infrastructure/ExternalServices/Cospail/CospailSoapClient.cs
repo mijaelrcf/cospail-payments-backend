@@ -5,6 +5,7 @@ using Application.DTOs.Cospail.Common;
 using Application.DTOs.Cospail.Requests;
 using Application.DTOs.Cospail.Responses;
 using Application.Interfaces.External;
+using Domain.Entities;
 using Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,7 +15,7 @@ namespace Infrastructure.ExternalServices.Cospail;
 /// <summary>
 /// Cliente SOAP manual para consumir el servicio de Cospail.
 /// </summary>
-public class CospailSoapClient : ICospailSoapClient
+public sealed class CospailSoapClient : ICospailSoapClient
 {
     private const string ServiceNamespace = "http://sermix.net/";
     private const string SoapEnvelopeNamespace = "http://schemas.xmlsoap.org/soap/envelope/";
@@ -89,8 +90,8 @@ public class CospailSoapClient : ICospailSoapClient
             ["Deuda"] = requestDto.Amount.ToString("0.00", CultureInfo.InvariantCulture),
             ["ldFpag"] = paymentDate,
             ["lsHpag"] = paymentTime,
-            ["lsLogin"] = _options.Login ?? string.Empty,
-            ["lsPassword"] = _options.Password ?? string.Empty
+            ["lsLogin"] = _options.Login,
+            ["lsPassword"] = _options.Password
         };
 
         var xml = await SendSoapRequestAsync(operationName, parameters, cancellationToken);
