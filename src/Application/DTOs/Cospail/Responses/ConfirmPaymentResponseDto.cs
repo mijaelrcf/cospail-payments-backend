@@ -16,5 +16,4 @@ public sealed class ConfirmPaymentResponseDto
     public decimal Amount { get; set; }
 
     public string? MemberName { get; set; }
-    public string RawCospailResult { get; set; } = string.Empty;
 }

@@ -114,8 +114,7 @@ public sealed class CospailSoapService(
             CreditNumber = request.CreditNumber,
             Type = request.Type,
             Amount = request.Amount,
-            MemberName = debtResponse.MemberName,
-            RawCospailResult = recordPaymentResponse.RawResult
+            MemberName = debtResponse.MemberName
         };
     }
 

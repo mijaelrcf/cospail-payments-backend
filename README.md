@@ -116,6 +116,7 @@ En el entorno `Development`, Swagger queda disponible en `/swagger`. Si prefiere
 | GET | `/api/CospailSoap/member-debt-by-document` | Consulta deuda por código fijo y CI/NIT. |
 | POST | `/api/CospailSoap/payments/confirm` | Valida y registra un cobro en COSPAIL. |
 | POST | `/api/qrsimple/notifyPaymentQR` | Callback de pago de Banco Económico. |
+| GET | `/health` | Health check (incluye conectividad con la base de datos). |
 
 Los errores globales se entregan como `application/problem+json`: 400 para argumentos inválidos, 404 para recursos no encontrados y 500 para errores no controlados. El callback QR es la excepción: siempre devuelve 200 y utiliza `responseCode` (`0`, `1` o `99`).
 

@@ -50,6 +50,7 @@ public static class DependencyInjection
                     .Value;
 
                 client.BaseAddress = new Uri(options.BaseUrl);
+                client.Timeout = TimeSpan.FromSeconds(30);
             }
         );
 

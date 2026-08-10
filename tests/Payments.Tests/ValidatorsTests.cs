@@ -116,6 +116,41 @@ public sealed class ValidatorsTests
             result.IsValid.Should().BeFalse();
             result.Errors.Should().Contain(x => x.PropertyName == nameof(request.BranchCode));
         }
+
+        [TestMethod]
+        public void Validate_WhenTransactionIdExceedsMaxLength_ReturnsError()
+        {
+            var request = new GenerateQrRequestDto
+            {
+                TransactionId = new string('x', 101),
+                Currency = "BOB",
+                Amount = 35.50m,
+                DueDate = "2026-07-31"
+            };
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.TransactionId));
+        }
+
+        [TestMethod]
+        public void Validate_WhenDescriptionExceedsMaxLength_ReturnsError()
+        {
+            var request = new GenerateQrRequestDto
+            {
+                TransactionId = "tx-001",
+                Currency = "BOB",
+                Amount = 35.50m,
+                DueDate = "2026-07-31",
+                Description = new string('x', 501)
+            };
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.Description));
+        }
     }
 
     [TestClass]

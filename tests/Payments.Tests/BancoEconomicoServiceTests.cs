@@ -1,6 +1,7 @@
 using Application.DTOs.BancoEconomico.Requests;
 using Application.DTOs.BancoEconomico.Responses;
 using Application.Interfaces.External;
+using Application.Interfaces.Persistence;
 using Application.Services;
 using Application.Validators;
 using Domain.Entities;
@@ -108,9 +109,78 @@ public sealed class BancoEconomicoServiceTests
         qr.PaidAtUtc.Should().Be(originalPaidAt);
     }
 
+    [TestMethod]
+    public async Task HandlePaymentNotificationAsync_WhenAmountDoesNotMatchAndNotModifiable_Throws()
+    {
+        await using var db = CreateInMemoryDb();
+        db.PagosQr.Add(CreatePendingQr());
+        await db.SaveChangesAsync();
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
+        var notification = CreateNotification();
+        notification.Payment!.Amount = 99.99m;
+
+        var act = () => service.HandlePaymentNotificationAsync(notification);
+
+        await act.Should().ThrowAsync<ArgumentException>().WithMessage("*amount*");
+
+        var stored = await db.PagosQr.SingleAsync(x => x.QrId == "qr-001");
+        stored.Status.Should().Be(PagoQrStatus.Pendiente);
+    }
+
+    [TestMethod]
+    public async Task HandlePaymentNotificationAsync_WhenAmountDiffersButModifiable_Pays()
+    {
+        await using var db = CreateInMemoryDb();
+        db.PagosQr.Add(new PagoQr(
+            "tx-001", "qr-001", 35.50m, "BOB", new DateOnly(2026, 7, 31), true, true, "Pago", "001", DateTime.UtcNow));
+        await db.SaveChangesAsync();
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
+        var notification = CreateNotification();
+        notification.Payment!.Amount = 40.00m;
+
+        var response = await service.HandlePaymentNotificationAsync(notification);
+
+        response.ResponseCode.Should().Be(0);
+
+        var stored = await db.PagosQr.SingleAsync(x => x.QrId == "qr-001");
+        stored.Status.Should().Be(PagoQrStatus.Pagado);
+    }
+
+    [TestMethod]
+    public async Task HandlePaymentNotificationAsync_WhenCurrencyDoesNotMatch_Throws()
+    {
+        await using var db = CreateInMemoryDb();
+        db.PagosQr.Add(CreatePendingQr());
+        await db.SaveChangesAsync();
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
+        var notification = CreateNotification();
+        notification.Payment!.Currency = "USD";
+
+        var act = () => service.HandlePaymentNotificationAsync(notification);
+
+        await act.Should().ThrowAsync<ArgumentException>().WithMessage("*currency*");
+
+        var stored = await db.PagosQr.SingleAsync(x => x.QrId == "qr-001");
+        stored.Status.Should().Be(PagoQrStatus.Pendiente);
+    }
+
+    [TestMethod]
+    public async Task GenerateQrAsync_WhenUniqueViolationOccurs_ThrowsArgumentException()
+    {
+        await using var db = CreateInMemoryDb();
+        var service = CreateService(
+            CreateClient("qr-001"),
+            new ThrowingPaymentsDbContext(db)
+        );
+
+        var act = () => service.GenerateQrAsync(CreateGenerateRequest("tx-001"));
+
+        await act.Should().ThrowAsync<ArgumentException>().WithMessage("*transactionId*");
+    }
+
     private static BancoEconomicoService CreateService(
         Mock<IBancoEconomicoQrClient> client,
-        PaymentsDbContext db
+        IPaymentsDbContext db
     ) =>
         new(
             client.Object,
@@ -160,4 +230,15 @@ public sealed class BancoEconomicoServiceTests
             Description = "Pago", BranchCode = "001"
         }
     };
+
+    private sealed class ThrowingPaymentsDbContext(IPaymentsDbContext inner) : IPaymentsDbContext
+    {
+        public DbSet<PagoQr> PagosQr => inner.PagosQr;
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            throw new DbUpdateException(
+                "An error occurred while saving the entity changes.",
+                new InvalidOperationException("duplicate key value violates unique constraint (23505)")
+            );
+    }
 }

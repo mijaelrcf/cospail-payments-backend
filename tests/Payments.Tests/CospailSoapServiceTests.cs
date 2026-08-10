@@ -141,7 +141,6 @@ public sealed class CospailSoapServiceTests
             result.FixedCode.Should().Be(123);
             result.DocumentId.Should().Be("1234567");
             result.MemberName.Should().Be("Juan Perez");
-            result.RawCospailResult.Should().Be("<result>ok</result>");
 
             client.Verify(x => x.RecordPaymentAsync(
                     It.Is<RecordPaymentRequestDto>(r =>

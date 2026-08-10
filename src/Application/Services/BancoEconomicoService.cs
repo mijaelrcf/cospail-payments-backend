@@ -79,7 +79,16 @@ public sealed class BancoEconomicoService(
         );
 
         dbContext.PagosQr.Add(pagoQr);
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            throw new ArgumentException("Ya existe un QR registrado para el transactionId proporcionado.");
+        }
+
         return response;
     }
 
@@ -125,6 +134,16 @@ public sealed class BancoEconomicoService(
             throw new ArgumentException("payment.transactionId no coincide con el QR registrado.");
         }
 
+        if (!pagoQr.ModifyAmount && payment.Amount != pagoQr.Amount)
+        {
+            throw new ArgumentException("payment.amount no coincide con el importe del QR.");
+        }
+
+        if (!string.Equals(pagoQr.Currency, payment.Currency, StringComparison.Ordinal))
+        {
+            throw new ArgumentException("payment.currency no coincide con la moneda del QR.");
+        }
+
         if (pagoQr.Status == PagoQrStatus.Pendiente)
         {
             pagoQr.MarkAsPaid(ParsePaymentDateTimeUtc(payment.PaymentDate, payment.PaymentTime));
@@ -162,5 +181,21 @@ public sealed class BancoEconomicoService(
         );
 
         return DateOnly.FromDateTime(paymentDateTime);
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException exception)
+    {
+        for (var current = exception.InnerException; current is not null; current = current.InnerException)
+        {
+            if (
+                current.Message.Contains("23505", StringComparison.Ordinal)
+                || current.Message.Contains("duplicate key value", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

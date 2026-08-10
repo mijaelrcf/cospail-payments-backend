@@ -125,13 +125,23 @@ public sealed class CospailSoapClient : ICospailSoapClient
                 "Error al consumir SOAP Cospail. Operación: {OperationName}. StatusCode: {StatusCode}. Respuesta: {Response}",
                 operationName,
                 response.StatusCode,
-                responseContent
+                Truncate(responseContent, 500)
             );
 
             throw new InvalidOperationException($"No se pudo consumir la operación SOAP {operationName}.");
         }
 
         return responseContent;
+    }
+
+    private static string Truncate(string value, int maxLength)
+    {
+        if (value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return $"{value[..maxLength]}... (truncado)";
     }
 
     private static string BuildSoapEnvelope(

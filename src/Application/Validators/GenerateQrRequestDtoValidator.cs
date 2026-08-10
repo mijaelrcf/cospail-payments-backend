@@ -13,7 +13,9 @@ public sealed class GenerateQrRequestDtoValidator : AbstractValidator<GenerateQr
     {
         RuleFor(x => x.TransactionId)
             .NotEmpty()
-            .WithMessage("transactionId es requerido.");
+            .WithMessage("transactionId es requerido.")
+            .MaximumLength(100)
+            .WithMessage("transactionId no puede exceder 100 caracteres.");
 
         RuleFor(x => x.Amount)
             .GreaterThan(0)
@@ -35,6 +37,10 @@ public sealed class GenerateQrRequestDtoValidator : AbstractValidator<GenerateQr
                 DateTimeStyles.None,
                 out _))
             .WithMessage("dueDate debe tener formato yyyy-MM-dd.");
+
+        RuleFor(x => x.Description)
+            .MaximumLength(500)
+            .WithMessage("description no puede exceder 500 caracteres.");
 
         RuleFor(x => x.BranchCode)
             .MaximumLength(5)
