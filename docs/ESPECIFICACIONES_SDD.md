@@ -1,10 +1,12 @@
 # Especificaciones reconstruidas — COSPAIL Payments Backend
 
-> Estado: especificaciones reconstruidas a partir de la implementación existente el 2026-07-13.
+> Estado: actualizado el 2026-08-10 para reflejar la implementación vigente
+> (validación centralizada, contrato del callback QR, health check y
+> eliminación del endpoint público de autenticación).
 >
-> Este documento trata el código, el contrato OpenAPI y los manuales de integración
-> presentes en el repositorio como la fuente de verdad. No describe funcionalidad
-> futura como si ya estuviera disponible.
+> Este documento trata el código, el contrato OpenAPI y los manuales de
+> integración presentes en el repositorio como la fuente de verdad. No describe
+> funcionalidad futura como si ya estuviera disponible.
 
 ## 1. Propósito y alcance
 
@@ -86,31 +88,15 @@ coincidan con la información vigente de COSPAIL.
 - Solo se registra el cobro si existe una deuda con el mismo `creditNumber`,
   `type` e `amount` exacto. De lo contrario, no se registra y se devuelve `500`.
 - Para una deuda coincidente, se invoca `grabarCobrosWEB` con crédito, tipo,
-  importe a dos decimales, fecha/hora local del servidor y las credenciales
-  configuradas de COSPAIL.
+  importe a dos decimales, fecha/hora local de Bolivia (UTC-04:00) y las
+  credenciales configuradas de COSPAIL.
 - Una respuesta SOAP cruda igual a `"1"` produce `success: true` y el mensaje
   `Cobro registrado correctamente.`; cualquier otro valor produce
-  `success: false` y conserva el valor como mensaje/resultados crudos.
+  `success: false` y conserva el valor de la respuesta SOAP como mensaje.
 - La respuesta exitosa conserva los datos de la solicitud y añade el nombre del
-  socio y el resultado crudo de COSPAIL.
+  socio. El resultado crudo de COSPAIL no se expone en la respuesta pública.
 
-### SPEC-004 — Autenticar la integración con Banco Económico
-
-**Objetivo.** Obtener un token Bearer para operar con QR.
-
-**Contrato.** `POST /api/BancoEconomico/authenticate`, sin cuerpo.
-
-**Reglas y criterios de aceptación.**
-
-- El usuario y contraseña cifrada se obtienen exclusivamente de la
-  configuración del servidor.
-- Se envía `POST api/authentication/authenticate` al API Gateway del banco.
-- Un HTTP no exitoso, una respuesta no deserializable o un `responseCode`
-  distinto de cero se traducen en `500`.
-- Con `responseCode: 0`, se devuelve `200` con `token`, `responseCode` y
-  `message` del banco.
-
-### SPEC-005 — Generar un QR de cobro
+### SPEC-004 — Generar un QR de cobro
 
 **Objetivo.** Crear un QR de Banco Económico para un importe, moneda y fecha de
 vencimiento indicados por el consumidor.
@@ -125,6 +111,10 @@ vencimiento indicados por el consumidor.
 - La cuenta de abono enviada por el consumidor se reemplaza siempre por
   `ExternalServices:BanEcoApi:AccountCredit`; por tanto, el consumidor no puede
   elegir la cuenta destino.
+- `transactionId` es obligatorio (máx. 100 caracteres) y `description` tiene un
+  límite de 500 caracteres; exceder esos límites devuelve `400`.
+- Un `transactionId` ya registrado devuelve `400`, incluso cuando una petición
+  concurrente intenta registrar el mismo identificador.
 - Si el banco responde HTTP exitoso y `responseCode: 0`, se devuelve el QR,
   incluyendo `qrId` y, cuando el banco lo entregue, `qrImage`.
 - Tras una emisión exitosa, se registra el QR con estado `Pendiente`, fecha y
@@ -132,7 +122,7 @@ vencimiento indicados por el consumidor.
 - Errores HTTP, errores de deserialización y códigos funcionales distintos de
   cero se devuelven como `500`.
 
-### SPEC-006 — Recibir notificación de pago QR
+### SPEC-005 — Recibir notificación de pago QR
 
 **Objetivo.** Validar y acusar las notificaciones de pago enviadas por Banco
 Económico.
@@ -144,9 +134,10 @@ Económico.
 - El endpoint siempre responde `200 OK`; el resultado funcional se comunica en
   `responseCode`.
 - Son obligatorios: `qrId`, `transactionId`, fecha, hora, moneda, importe,
-  código de banco emisor, nombre, cuenta de origen, descripción y sucursal.
-- La fecha debe ser interpretable como fecha, la hora como hora y el importe
-  debe ser mayor que cero.
+  código de banco emisor, nombre, cuenta de origen y descripción. La sucursal
+  (`branchCode`) es opcional.
+- `payment.paymentDate` admite `yyyy-MM-dd` o `yyyy-MM-ddTHH:mm:ss`; la hora
+  debe tener formato `HH:mm:ss` y el importe debe ser mayor que cero.
 - La moneda se normaliza a mayúsculas y debe ser `BOB` o `USD`.
 - Una entrada inválida devuelve `responseCode: 1` y explica el campo inválido.
 - Un error no controlado devuelve `responseCode: 99` y un mensaje genérico.
@@ -156,27 +147,32 @@ Económico.
   como `Pagado` y conserva la fecha/hora de pago en UTC. Las repeticiones de
   una notificación ya procesada son idempotentes.
 - Un QR inexistente o un `transactionId` no coincidente devuelve `responseCode: 1`.
+- Un importe distinto al solicitado (salvo que el QR permita `modifyAmount`) o
+  una moneda distinta a la del QR devuelven `responseCode: 1`.
 
-### SPEC-007 — Verificar disponibilidad de la API
+### SPEC-006 — Verificar disponibilidad de la API
 
-**Objetivo.** Permitir una comprobación liviana de que el proceso HTTP está en
-ejecución.
+**Objetivo.** Permitir una comprobación de que el proceso HTTP y la base de
+datos están disponibles.
 
-**Contrato.** `GET /api/Health`.
+**Contrato.** `GET /health`.
 
-**Criterio de aceptación.** Devuelve `200 OK` con el mensaje
-`Cospail Payments API is running` y una marca de tiempo UTC.
+**Criterios de aceptación.**
+
+- Con la base de datos accesible, devuelve `200` con el estado `Healthy`.
+- Con la base de datos inaccesible, devuelve `503` con el estado `Unhealthy`.
 
 ## 4. Requisitos no funcionales y restricciones actuales
 
 | ID | Especificación |
 | --- | --- |
 | NFR-001 | La API redirige a HTTPS y aplica CORS únicamente a `http://localhost:5173`. |
-| NFR-002 | En desarrollo publica Swagger; el contrato versionado es `docs/openapi.yaml` (OpenAPI 3.0.3). |
-| NFR-003 | Los errores no controlados se registran y devuelven `application/problem+json` con HTTP 500; `ArgumentException` se convierte en 400 y `KeyNotFoundException` en 404. |
-| NFR-004 | Los clientes externos usan `HttpClient`; el cliente de Banco Económico tiene 30 segundos de timeout. |
+| NFR-002 | En desarrollo publica Swagger en `/swagger`. |
+| NFR-003 | Los errores no controlados se registran y devuelven `application/problem+json` con HTTP 500; `ValidationException` y `ArgumentException` se convierten en 400 y `KeyNotFoundException` en 404. |
+| NFR-004 | Los clientes externos usan `HttpClient`; tanto el cliente de COSPAIL como el de Banco Económico tienen 30 segundos de timeout. |
 | NFR-005 | Las credenciales y las URLs de proveedores se obtienen desde `ExternalServices:CospailSoap` y `ExternalServices:BanEcoApi`. |
 | NFR-006 | Se registra información de trazabilidad de QR (transacción, QR, importe y datos del ordenante) mediante el sistema de logging. |
+| NFR-007 | Los logs de error del cliente SOAP truncan la respuesta externa para evitar exponer datos personales. |
 
 ## 5. Fuera de alcance / trabajo pendiente explícito
 
@@ -184,6 +180,9 @@ ejecución.
   válido solo se valida, registra y acusa. No llama a `grabarCobrosWEB`.
 - **SPEC-FUT-003 — Conciliación QR.** No se relaciona actualmente
   `transactionId`/`qrId` con una deuda COSPAIL antes de acreditar el pago.
+- **SPEC-FUT-004 — Verificación del pago contra el banco.** El callback se
+  acepta tal cual; no se consultan los servicios `statusQR`/`paidQR` del banco
+  para confirmar el pago, ni existe corrección manual de pagos.
 
 ## 6. Trazabilidad de implementación
 
@@ -191,19 +190,22 @@ ejecución.
 | --- | --- |
 | SPEC-001 y SPEC-002 | `CospailSoapController`, `CospailSoapService`, `CospailSoapClient` |
 | SPEC-003 | `CospailSoapController`, `CospailSoapService`, `CospailSoapClient.RecordPaymentAsync` |
-| SPEC-004 y SPEC-005 | `BancoEconomicoController`, `BancoEconomicoService`, `BancoEconomicoQrClient` |
-| SPEC-006 | `NotifyPaymentQrController`, `BancoEconomicoService.HandlePaymentNotificationAsync` |
-| SPEC-007 | `HealthController` |
+| SPEC-004 | `BancoEconomicoController`, `BancoEconomicoService`, `BancoEconomicoQrClient` |
+| SPEC-005 | `NotifyPaymentQrController`, `BancoEconomicoService.HandlePaymentNotificationAsync` |
+| SPEC-006 | `Program` (`MapHealthChecks` + `AddDbContextCheck`) |
 
 ## 7. Observaciones de consistencia para un proceso SDD futuro
 
-1. El contrato OpenAPI no documenta `GET /api/Health`, aunque está implementado.
+1. El contrato OpenAPI generado no documenta `GET /health` (los health checks
+   de ASP.NET Core no se incluyen en Swagger por defecto).
 2. El contrato publica respuestas `400` y `404` para la confirmación de pagos,
    pero la implementación arroja `InvalidOperationException` en sus reglas de
    negocio; el middleware actual lo expone como `500`.
 3. La especificación OpenAPI exige `accountCredit` en la solicitud de QR, pero
    la implementación lo ignora y lo reemplaza por configuración. Es conveniente
    convertirlo en opcional o eliminarlo del contrato público.
-4. No se encontraron pruebas automatizadas en la solución. Cada criterio de
-   aceptación de este documento debería tener al menos una prueba de éxito y una
-   de rechazo antes de evolucionar la funcionalidad.
+4. El proyecto `Payments.Tests` cubre con pruebas automatizadas los validadores,
+   los servicios de aplicación, los controladores y el modelo de datos. Los
+   criterios de aceptación que dependen de los servicios externos (SOAP COSPAIL
+   y API de Banco Económico) requieren verificación manual contra los entornos
+   de prueba.

@@ -30,9 +30,9 @@ SOAP/SOA COSPAIL          API Gateway Banco Económico
 
 Flujos principales:
 
-1. Consulta y confirmación: el API consulta la deuda en COSPAIL; antes de registrar el pago valida socio, documento, crédito, tipo e importe.
+1. Consulta y confirmación: el API consulta la deuda en COSPAIL; antes de registrar el pago valida socio, documento, crédito, tipo e importe. El cobro se registra con la fecha/hora local de Bolivia (UTC-04:00).
 2. Generación QR: el API se autentica con Banco Económico usando las credenciales del servidor, obtiene un token Bearer y solicita el QR. La respuesta contiene `qrImage`.
-3. Notificación QR: Banco Económico llama a `POST /api/qrsimple/notifyPaymentQR`. El QR pendiente se marca como pagado de forma idempotente; la acreditación automática en COSPAIL permanece como trabajo de una fase posterior.
+3. Notificación QR: Banco Económico llama a `POST /api/qrsimple/notifyPaymentQR`. El callback valida que el QR exista y que `transactionId`, moneda e importe (salvo que el QR permita `modifyAmount`) coincidan, y marca el QR pendiente como pagado de forma idempotente; la acreditación automática en COSPAIL permanece como trabajo de una fase posterior.
 
 ## Requisitos
 
@@ -73,7 +73,7 @@ dotnet user-secrets set "ExternalServices:BanEcoApi:AccountCredit" "CUENTA_BANEC
 dotnet user-secrets set "ConnectionStrings:PaymentsDatabase" "Host=localhost;Port=5432;Database=cospail_payments;Username=postgres;Password=TU_PASSWORD" --project src/Api
 ```
 
-`CospailSoap:Login` y `CospailSoap:Password` forman parte de la configuración, aunque el cliente SOAP actual no los incluye en el sobre SOAP. `AccountCredit` recibido en la solicitud de QR es reemplazado por el valor configurado en el servidor.
+`CospailSoap:Login` y `CospailSoap:Password` se incluyen en el sobre SOAP de `grabarCobrosWEB`. `AccountCredit` recibido en la solicitud de QR es reemplazado por el valor configurado en el servidor.
 
 ### Migraciones PostgreSQL
 
@@ -119,5 +119,7 @@ En el entorno `Development`, Swagger queda disponible en `/swagger`. Si prefiere
 | GET | `/health` | Health check (incluye conectividad con la base de datos). |
 
 Los errores globales se entregan como `application/problem+json`: 400 para argumentos inválidos, 404 para recursos no encontrados y 500 para errores no controlados. El callback QR es la excepción: siempre devuelve 200 y utiliza `responseCode` (`0`, `1` o `99`).
+
+En el callback, `payment.paymentDate` admite `yyyy-MM-dd` o `yyyy-MM-ddTHH:mm:ss` y `payment.branchCode` es opcional.
 
 
