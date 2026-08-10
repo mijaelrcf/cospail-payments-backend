@@ -17,16 +17,6 @@ public class BancoEconomicoController : ControllerBase
     }
 
     /// <summary>
-    /// Endpoint temporal para probar autenticación con Banco Económico.
-    /// </summary>
-    [HttpPost("authenticate")]
-    public async Task<IActionResult> AuthenticateBancoEconomico(CancellationToken cancellationToken)
-    {
-        var result = await _bancoEconomicoService.AuthenticateAsync(cancellationToken);
-        return Ok(result);
-    }
-
-    /// <summary>
     /// Genera un código QR en Banco Económico.
     /// </summary>
     [HttpPost("generate-qr")]

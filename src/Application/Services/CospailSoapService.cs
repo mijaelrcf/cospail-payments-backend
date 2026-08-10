@@ -16,6 +16,7 @@ public sealed class CospailSoapService(
     IValidator<ConfirmPaymentRequestDto> confirmPaymentValidator
 ) : ICospailSoapService
 {
+    private static readonly TimeZoneInfo BoliviaTimeZone = GetBoliviaTimeZone();
     public async Task<CospailDebtResponseDto> GetDebtAsync(
         int fixedCode,
         CancellationToken cancellationToken = default
@@ -90,7 +91,7 @@ public sealed class CospailSoapService(
             );
         }
 
-        var paymentDateTime = DateTime.UtcNow;
+        var paymentDateTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, BoliviaTimeZone);
 
         var recordPaymentResponse = await cospailSoapClient.RecordPaymentAsync(
             new RecordPaymentRequestDto
@@ -116,5 +117,21 @@ public sealed class CospailSoapService(
             MemberName = debtResponse.MemberName,
             RawCospailResult = recordPaymentResponse.RawResult
         };
+    }
+
+    private static TimeZoneInfo GetBoliviaTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("America/La_Paz");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.CreateCustomTimeZone("Bolivia", TimeSpan.FromHours(-4), "Bolivia", "Bolivia");
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return TimeZoneInfo.CreateCustomTimeZone("Bolivia", TimeSpan.FromHours(-4), "Bolivia", "Bolivia");
+        }
     }
 }

@@ -32,13 +32,8 @@ public sealed class NotifyPaymentQrRequestDtoValidator : AbstractValidator<Notif
             RuleFor(x => x.PaymentDate)
                 .NotEmpty()
                 .WithMessage("payment.paymentDate es requerido.")
-                .Must(d => DateOnly.TryParseExact(
-                    d,
-                    "yyyy-MM-dd",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out _))
-                .WithMessage("payment.paymentDate debe tener formato yyyy-MM-dd.");
+                .Must(BeValidPaymentDate)
+                .WithMessage("payment.paymentDate debe tener formato yyyy-MM-dd o yyyy-MM-ddTHH:mm:ss.");
 
             RuleFor(x => x.PaymentTime)
                 .NotEmpty()
@@ -76,10 +71,22 @@ public sealed class NotifyPaymentQrRequestDtoValidator : AbstractValidator<Notif
             RuleFor(x => x.Description)
                 .NotEmpty()
                 .WithMessage("payment.description es requerido.");
-
-            RuleFor(x => x.BranchCode)
-                .NotEmpty()
-                .WithMessage("payment.branchCode es requerido.");
         }
+    }
+
+    private static bool BeValidPaymentDate(string value)
+    {
+        if (DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+        {
+            return true;
+        }
+
+        return DateTime.TryParseExact(
+            value,
+            "yyyy-MM-ddTHH:mm:ss",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out _
+        );
     }
 }

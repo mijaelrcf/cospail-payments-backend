@@ -111,7 +111,6 @@ En el entorno `Development`, Swagger queda disponible en `/swagger`. Si prefiere
 
 | Método | Ruta | Propósito |
 | --- | --- | --- |
-| POST | `/api/BancoEconomico/authenticate` | Prueba de autenticación interna con Banco Económico. |
 | POST | `/api/BancoEconomico/generate-qr` | Genera un QR de cobro. |
 | GET | `/api/CospailSoap/debt/{fixedCode}` | Consulta deuda por código fijo. |
 | GET | `/api/CospailSoap/member-debt-by-document` | Consulta deuda por código fijo y CI/NIT. |

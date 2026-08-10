@@ -7,6 +7,7 @@ using Domain.Entities;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 
 namespace Application.Services;
 
@@ -21,10 +22,6 @@ public sealed class BancoEconomicoService(
     ILogger<BancoEconomicoService> logger
 ) : IBancoEconomicoService
 {
-    /// <inheritdoc />
-    public Task<AuthenticateResponseDto> AuthenticateAsync(CancellationToken cancellationToken = default) =>
-        bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
-
     /// <inheritdoc />
     public async Task<GenerateQrResponseDto> GenerateQrAsync(
         GenerateQrRequestDto request,
@@ -143,11 +140,27 @@ public sealed class BancoEconomicoService(
 
     private static DateTime ParsePaymentDateTimeUtc(string paymentDate, string paymentTime)
     {
-        var date = DateOnly.Parse(paymentDate);
+        var date = ParsePaymentDate(paymentDate);
         var time = TimeOnly.Parse(paymentTime);
         var localPaymentDateTime = date.ToDateTime(time, DateTimeKind.Unspecified);
 
         // Banco Económico reporta la fecha y hora local de Bolivia (UTC-04:00).
         return new DateTimeOffset(localPaymentDateTime, TimeSpan.FromHours(-4)).UtcDateTime;
+    }
+
+    private static DateOnly ParsePaymentDate(string paymentDate)
+    {
+        if (DateOnly.TryParseExact(paymentDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        {
+            return date;
+        }
+
+        var paymentDateTime = DateTime.ParseExact(
+            paymentDate,
+            "yyyy-MM-ddTHH:mm:ss",
+            CultureInfo.InvariantCulture
+        );
+
+        return DateOnly.FromDateTime(paymentDateTime);
     }
 }

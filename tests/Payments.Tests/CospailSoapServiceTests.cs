@@ -145,7 +145,10 @@ public sealed class CospailSoapServiceTests
 
             client.Verify(x => x.RecordPaymentAsync(
                     It.Is<RecordPaymentRequestDto>(r =>
-                        r.CreditNumber == 5 && r.Type == 1 && r.Amount == 100.00m),
+                        r.CreditNumber == 5
+                        && r.Type == 1
+                        && r.Amount == 100.00m
+                        && r.PaymentDate.Kind == DateTimeKind.Unspecified),
                     It.IsAny<CancellationToken>()),
                 Times.Once);
         }

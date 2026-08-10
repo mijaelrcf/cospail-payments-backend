@@ -169,6 +169,28 @@ public sealed class ValidatorsTests
         }
 
         [TestMethod]
+        public void Validate_WhenPaymentDateHasDatetimeFormat_ReturnsNoErrors()
+        {
+            var request = CreateValidNotification();
+            request.Payment!.PaymentDate = "2026-07-14T00:00:00";
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeTrue();
+        }
+
+        [TestMethod]
+        public void Validate_WhenBranchCodeIsMissing_ReturnsNoErrors()
+        {
+            var request = CreateValidNotification();
+            request.Payment!.BranchCode = "";
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeTrue();
+        }
+
+        [TestMethod]
         public void Validate_WhenPaymentTimeHasInvalidFormat_ReturnsError()
         {
             var request = CreateValidNotification();

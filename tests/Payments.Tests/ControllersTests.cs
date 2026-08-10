@@ -127,20 +127,6 @@ public sealed class ControllersTests
         private readonly Mock<IBancoEconomicoService> _service = new();
 
         [TestMethod]
-        public async Task AuthenticateBancoEconomico_WhenServiceSucceeds_ReturnsOkWithResult()
-        {
-            var controller = new BancoEconomicoController(_service.Object);
-            var expected = new AuthenticateResponseDto { Token = "token", ResponseCode = 0 };
-            _service.Setup(x => x.AuthenticateAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(expected);
-
-            var result = await controller.AuthenticateBancoEconomico(CancellationToken.None);
-
-            var ok = result.Should().BeOfType<OkObjectResult>().Subject;
-            ok.Value.Should().BeSameAs(expected);
-        }
-
-        [TestMethod]
         public async Task GenerateQr_WhenServiceSucceeds_ReturnsOkWithResult()
         {
             var controller = new BancoEconomicoController(_service.Object);
