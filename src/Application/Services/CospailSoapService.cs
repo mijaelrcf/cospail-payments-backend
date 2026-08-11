@@ -69,17 +69,17 @@ public sealed class CospailSoapService(
 
         if (debtResponse.Status == MemberDebtStatus.MemberNotFound)
         {
-            throw new InvalidOperationException("El socio no existe en Cospail.");
+            throw new ArgumentException("El socio no existe en Cospail.");
         }
 
         if (debtResponse.Status == MemberDebtStatus.DocumentMismatch)
         {
-            throw new InvalidOperationException("El documento no coincide con el código fijo.");
+            throw new ArgumentException("El documento no coincide con el código fijo.");
         }
 
         if (debtResponse.Status == MemberDebtStatus.NoDebt)
         {
-            throw new InvalidOperationException("El socio no tiene deudas pendientes.");
+            throw new ArgumentException("El socio no tiene deudas pendientes.");
         }
 
         var debtToPay = debtResponse.Debts.FirstOrDefault(x =>
@@ -90,7 +90,7 @@ public sealed class CospailSoapService(
 
         if (debtToPay is null)
         {
-            throw new InvalidOperationException(
+            throw new ArgumentException(
                 "La deuda enviada no coincide con la deuda registrada en Cospail."
             );
         }
@@ -163,17 +163,17 @@ public sealed class CospailSoapService(
 
         if (debtResponse.Status == MemberDebtStatus.MemberNotFound)
         {
-            throw new InvalidOperationException("El socio no existe en Cospail.");
+            throw new ArgumentException("El socio no existe en Cospail.");
         }
 
         if (debtResponse.Status == MemberDebtStatus.DocumentMismatch)
         {
-            throw new InvalidOperationException("El documento no coincide con el código fijo.");
+            throw new ArgumentException("El documento no coincide con el código fijo.");
         }
 
         if (debtResponse.Status == MemberDebtStatus.NoDebt)
         {
-            throw new InvalidOperationException("El socio no tiene deudas pendientes.");
+            throw new ArgumentException("El socio no tiene deudas pendientes.");
         }
 
         var availableDebts = debtResponse.Debts.ToList();
@@ -189,7 +189,7 @@ public sealed class CospailSoapService(
 
             if (index < 0)
             {
-                throw new InvalidOperationException(
+                throw new ArgumentException(
                     $"La deuda {item.CreditNumber} (tipo {item.Type}) no coincide con la deuda registrada en Cospail."
                 );
             }

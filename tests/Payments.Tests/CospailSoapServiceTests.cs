@@ -184,7 +184,7 @@ public sealed class CospailSoapServiceTests
 
             var act = () => service.ConfirmPaymentAsync(CreateRequest());
 
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*no existe*");
+            await act.Should().ThrowAsync<ArgumentException>().WithMessage("*no existe*");
         }
 
         [TestMethod]
@@ -194,7 +194,7 @@ public sealed class CospailSoapServiceTests
 
             var act = () => service.ConfirmPaymentAsync(CreateRequest());
 
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*no coincide*");
+            await act.Should().ThrowAsync<ArgumentException>().WithMessage("*no coincide*");
         }
 
         [TestMethod]
@@ -204,7 +204,7 @@ public sealed class CospailSoapServiceTests
 
             var act = () => service.ConfirmPaymentAsync(CreateRequest());
 
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*deudas*");
+            await act.Should().ThrowAsync<ArgumentException>().WithMessage("*deudas*");
         }
 
         [TestMethod]
@@ -218,7 +218,7 @@ public sealed class CospailSoapServiceTests
 
             var act = () => service.ConfirmPaymentAsync(request);
 
-            await act.Should().ThrowAsync<InvalidOperationException>()
+            await act.Should().ThrowAsync<ArgumentException>()
                 .WithMessage("*no coincide*");
 
             client.Verify(x => x.RecordPaymentAsync(
@@ -328,7 +328,7 @@ public sealed class CospailSoapServiceTests
 
             var act = () => service.InitiatePaymentAsync(CreateRequest());
 
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*no existe*");
+            await act.Should().ThrowAsync<ArgumentException>().WithMessage("*no existe*");
         }
 
         [TestMethod]
@@ -343,7 +343,7 @@ public sealed class CospailSoapServiceTests
 
             var act = () => service.InitiatePaymentAsync(request);
 
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*no coincide*");
+            await act.Should().ThrowAsync<ArgumentException>().WithMessage("*no coincide*");
         }
 
         [TestMethod]
