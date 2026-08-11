@@ -3,8 +3,28 @@ using Application.DependencyInjection;
 using Infrastructure.DependencyInjection;
 using Infrastructure.Persistence;
 using Microsoft.OpenApi;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configurar Serilog: reemplaza los proveedores por defecto y escribe en consola y en archivo (logs/api-YYYYMMDD.log)
+builder.Logging.ClearProviders();
+builder
+    .Host
+    .UseSerilog(
+        (context, services, configuration) =>
+            configuration
+                .ReadFrom
+                .Configuration(context.Configuration)
+                .ReadFrom
+                .Services(services)
+                .Enrich
+                .FromLogContext()
+                .WriteTo
+                .Console()
+                .WriteTo
+                .File("logs/api-.log", rollingInterval: RollingInterval.Day)
+    );
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -31,8 +51,7 @@ builder
     });
 
 //Add Cors policy to allow frontend access
-var allowedOrigins =
-    builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 
 builder
     .Services
@@ -42,10 +61,7 @@ builder
             "FrontendPolicy",
             policy =>
             {
-                policy
-                    .WithOrigins(allowedOrigins)
-                    .AllowAnyHeader()
-                    .AllowAnyMethod();
+                policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
             }
         );
     });
