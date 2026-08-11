@@ -19,6 +19,7 @@ public sealed class BancoEconomicoService(
     IPaymentsDbContext dbContext,
     IValidator<GenerateQrRequestDto> generateQrValidator,
     IValidator<NotifyPaymentQrRequestDto> notifyPaymentValidator,
+    ICospailSoapService cospailSoapService,
     ILogger<BancoEconomicoService> logger
 ) : IBancoEconomicoService
 {
@@ -34,6 +35,27 @@ public sealed class BancoEconomicoService(
         request.Currency = request.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
 
         await generateQrValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        PagoCospail? pagoCospail = null;
+        if (request.PagoCospailId is Guid pagoCospailId)
+        {
+            pagoCospail = await dbContext.PagosCospail.SingleOrDefaultAsync(
+                x => x.Id == pagoCospailId,
+                cancellationToken
+            );
+
+            if (pagoCospail is null)
+            {
+                throw new ArgumentException("pagoCospailId no existe.");
+            }
+
+            if (pagoCospail.Status != PagoCospailStatus.Pendiente)
+            {
+                throw new ArgumentException("El pago ya tiene un QR asociado.");
+            }
+
+            request.Amount = pagoCospail.TotalAmount;
+        }
 
         if (await dbContext.PagosQr.SingleOrDefaultAsync(x => x.TransactionId == request.TransactionId, cancellationToken) is not null)
         {
@@ -79,6 +101,11 @@ public sealed class BancoEconomicoService(
         );
 
         dbContext.PagosQr.Add(pagoQr);
+
+        if (pagoCospail is not null && !pagoCospail.MarkAsQrGenerated(pagoQr.Id))
+        {
+            throw new ArgumentException("El pago ya tiene un QR asociado.");
+        }
 
         try
         {
@@ -147,6 +174,21 @@ public sealed class BancoEconomicoService(
         if (pagoQr.Status == PagoQrStatus.Pendiente)
         {
             pagoQr.MarkAsPaid(ParsePaymentDateTimeUtc(payment.PaymentDate, payment.PaymentTime));
+        }
+
+        var shouldSave = pagoQr.Status == PagoQrStatus.Pagado;
+
+        var pagoCospail = await dbContext
+            .PagosCospail.Include(x => x.Deudas)
+            .SingleOrDefaultAsync(x => x.PagoQrId == pagoQr.Id, cancellationToken);
+
+        if (pagoCospail is not null && await RegisterDebtsInCospailAsync(pagoCospail, cancellationToken))
+        {
+            shouldSave = true;
+        }
+
+        if (shouldSave)
+        {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
@@ -155,6 +197,80 @@ public sealed class BancoEconomicoService(
             ResponseCode = 0,
             Message = string.Empty
         };
+    }
+
+    private async Task<bool> RegisterDebtsInCospailAsync(
+        PagoCospail pagoCospail,
+        CancellationToken cancellationToken
+    )
+    {
+        if (pagoCospail.Status == PagoCospailStatus.CospailRegistrado)
+        {
+            return false;
+        }
+
+        var debtsToRegister = pagoCospail
+            .Deudas.Where(x => x.Status != DeudaCospailStatus.CospailRegistrado)
+            .ToList();
+
+        if (debtsToRegister.Count == 0)
+        {
+            pagoCospail.MarkAsCospailRegistrado();
+            return true;
+        }
+
+        var allRegistered = true;
+
+        foreach (var deuda in debtsToRegister)
+        {
+            try
+            {
+                var response = await cospailSoapService.RecordDebtPaymentAsync(
+                    deuda.CreditNumber,
+                    deuda.Type,
+                    deuda.Amount,
+                    cancellationToken
+                );
+
+                if (response.Success)
+                {
+                    deuda.MarkAsCospailRegistrado();
+                }
+                else
+                {
+                    deuda.MarkAsPagado();
+                    allRegistered = false;
+                    logger.LogWarning(
+                        "Cospail no registró el cobro de la deuda {CreditNumber} del pago {PagoCospailId}. Respuesta: {Message}",
+                        deuda.CreditNumber,
+                        pagoCospail.Id,
+                        response.Message
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                deuda.MarkAsPagado();
+                allRegistered = false;
+                logger.LogError(
+                    ex,
+                    "Error registrando en Cospail el cobro de la deuda {CreditNumber} del pago {PagoCospailId}.",
+                    deuda.CreditNumber,
+                    pagoCospail.Id
+                );
+            }
+        }
+
+        if (allRegistered)
+        {
+            pagoCospail.MarkAsCospailRegistrado();
+        }
+        else
+        {
+            pagoCospail.MarkAsPagado();
+        }
+
+        return true;
     }
 
     private static DateTime ParsePaymentDateTimeUtc(string paymentDate, string paymentTime)

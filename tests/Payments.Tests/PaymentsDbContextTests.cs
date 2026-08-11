@@ -28,6 +28,39 @@ public sealed class PaymentsDbContextTests
     }
 
     [TestMethod]
+    public void Model_MapsCospailPaymentTables()
+    {
+        var options = new DbContextOptionsBuilder<PaymentsDbContext>()
+            .UseNpgsql("Host=localhost;Database=cospail_payments_model_test;Username=postgres;Password=unused")
+            .Options;
+        using var context = new PaymentsDbContext(options);
+
+        var pagoCospail = context.Model.FindEntityType(typeof(PagoCospail));
+        pagoCospail.Should().NotBeNull();
+        pagoCospail!.GetTableName().Should().Be("pagos_cospail");
+        pagoCospail!.GetIndexes().Should().Contain(x =>
+            x.IsUnique && x.Properties.Single().Name == nameof(PagoCospail.PagoQrId));
+        pagoCospail!.FindProperty(nameof(PagoCospail.CreatedAtUtc))!.GetColumnType().Should().Be("timestamp with time zone");
+
+        var deuda = context.Model.FindEntityType(typeof(DeudaCospail));
+        deuda.Should().NotBeNull();
+        deuda!.GetTableName().Should().Be("deudas_cospail");
+        deuda!.FindProperty(nameof(DeudaCospail.PagoCospailId))!.IsNullable.Should().BeFalse();
+        deuda!.GetForeignKeys().Should().Contain(x =>
+            x.PrincipalEntityType.ClrType == typeof(PagoCospail));
+        deuda!.GetIndexes().Should().Contain(x =>
+            x.Properties
+                .Select(p => p.Name)
+                .SequenceEqual(new[]
+                {
+                    nameof(DeudaCospail.FixedCode),
+                    nameof(DeudaCospail.CreditNumber),
+                    nameof(DeudaCospail.Type),
+                    nameof(DeudaCospail.Status)
+                }));
+    }
+
+    [TestMethod]
     public async Task PostgreSql_MigrationAndPersistence_WorkWhenConnectionIsConfigured()
     {
         var connectionString = Environment.GetEnvironmentVariable("PAYMENTS_TEST_CONNECTION_STRING");

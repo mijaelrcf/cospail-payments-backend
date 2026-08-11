@@ -16,11 +16,28 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
     /// </summary>
     public DbSet<PagoQr> PagosQr => Set<PagoQr>();
 
+    /// <summary>
+    /// Pagos agrupados de deudas de Cospail.
+    /// </summary>
+    public DbSet<PagoCospail> PagosCospail => Set<PagoCospail>();
+
+    /// <summary>
+    /// Deudas de Cospail incluidas en un pago.
+    /// </summary>
+    public DbSet<DeudaCospail> DeudasCospail => Set<DeudaCospail>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
+        ConfigurePagoQr(modelBuilder);
+        ConfigurePagoCospail(modelBuilder);
+        ConfigureDeudaCospail(modelBuilder);
+    }
+
+    private static void ConfigurePagoQr(ModelBuilder modelBuilder)
+    {
         var pagoQr = modelBuilder.Entity<PagoQr>();
         pagoQr.ToTable("pagos_qr");
         pagoQr.HasKey(x => x.Id);
@@ -41,5 +58,53 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
         pagoQr.HasIndex(x => x.QrId).IsUnique();
         pagoQr.HasIndex(x => x.Status);
         pagoQr.HasIndex(x => x.CreatedAtUtc);
+    }
+
+    private static void ConfigurePagoCospail(ModelBuilder modelBuilder)
+    {
+        var pagoCospail = modelBuilder.Entity<PagoCospail>();
+        pagoCospail.ToTable("pagos_cospail");
+        pagoCospail.HasKey(x => x.Id);
+        pagoCospail.Property(x => x.Id).HasColumnName("id");
+        pagoCospail.Property(x => x.FixedCode).HasColumnName("fixed_code").IsRequired();
+        pagoCospail.Property(x => x.DocumentId).HasColumnName("document_id").HasMaxLength(32).IsRequired();
+        pagoCospail.Property(x => x.MemberName).HasColumnName("member_name").HasMaxLength(200);
+        pagoCospail.Property(x => x.TotalAmount).HasColumnName("total_amount").HasPrecision(18, 2).IsRequired();
+        pagoCospail.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(24).IsRequired();
+        pagoCospail.Property(x => x.PagoQrId).HasColumnName("pago_qr_id").HasColumnType("uuid");
+        pagoCospail.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone").IsRequired();
+        pagoCospail.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+        pagoCospail.HasOne(x => x.Qr)
+            .WithMany()
+            .HasForeignKey(x => x.PagoQrId)
+            .IsRequired(false);
+        pagoCospail.HasIndex(x => x.FixedCode);
+        pagoCospail.HasIndex(x => x.Status);
+        pagoCospail.HasIndex(x => x.PagoQrId).IsUnique();
+    }
+
+    private static void ConfigureDeudaCospail(ModelBuilder modelBuilder)
+    {
+        var deudaCospail = modelBuilder.Entity<DeudaCospail>();
+        deudaCospail.ToTable("deudas_cospail");
+        deudaCospail.HasKey(x => x.Id);
+        deudaCospail.Property(x => x.Id).HasColumnName("id");
+        deudaCospail.Property(x => x.FixedCode).HasColumnName("fixed_code").IsRequired();
+        deudaCospail.Property(x => x.DocumentId).HasColumnName("document_id").HasMaxLength(32).IsRequired();
+        deudaCospail.Property(x => x.MemberName).HasColumnName("member_name").HasMaxLength(200);
+        deudaCospail.Property(x => x.CreditNumber).HasColumnName("credit_number").IsRequired();
+        deudaCospail.Property(x => x.Type).HasColumnName("type").IsRequired();
+        deudaCospail.Property(x => x.NoticeNumber).HasColumnName("notice_number").IsRequired();
+        deudaCospail.Property(x => x.Year).HasColumnName("year").IsRequired();
+        deudaCospail.Property(x => x.Month).HasColumnName("month").IsRequired();
+        deudaCospail.Property(x => x.Period).HasColumnName("period").HasMaxLength(50).IsRequired();
+        deudaCospail.Property(x => x.Amount).HasColumnName("amount").HasPrecision(18, 2).IsRequired();
+        deudaCospail.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(24).IsRequired();
+        deudaCospail.Property(x => x.PagoCospailId).HasColumnName("pago_cospail_id").IsRequired();
+        deudaCospail.HasOne(x => x.PagoCospail)
+            .WithMany(x => x.Deudas)
+            .HasForeignKey(x => x.PagoCospailId)
+            .OnDelete(DeleteBehavior.Cascade);
+        deudaCospail.HasIndex(x => new { x.FixedCode, x.CreditNumber, x.Type, x.Status });
     }
 }

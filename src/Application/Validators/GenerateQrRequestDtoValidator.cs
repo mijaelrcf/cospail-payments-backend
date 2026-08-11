@@ -19,7 +19,8 @@ public sealed class GenerateQrRequestDtoValidator : AbstractValidator<GenerateQr
 
         RuleFor(x => x.Amount)
             .GreaterThan(0)
-            .WithMessage("amount debe ser mayor a cero.");
+            .WithMessage("amount debe ser mayor a cero.")
+            .When(x => x.PagoCospailId is null);
 
         RuleFor(x => x.Currency)
             .NotEmpty()

@@ -119,6 +119,40 @@ public sealed class ControllersTests
             var ok = result.Should().BeOfType<OkObjectResult>().Subject;
             ok.Value.Should().BeSameAs(expected);
         }
+
+        [TestMethod]
+        public async Task InitiatePayment_WhenServiceSucceeds_ReturnsOkWithResult()
+        {
+            var controller = new CospailSoapController(_service.Object);
+            var request = new InitiatePaymentRequestDto
+            {
+                FixedCode = 123,
+                DocumentId = "1234567"
+            };
+            var expected = new PagoCospailResponseDto { PagoCospailId = Guid.NewGuid() };
+            _service.Setup(x => x.InitiatePaymentAsync(request, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expected);
+
+            var result = await controller.InitiatePayment(request, CancellationToken.None);
+
+            var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+            ok.Value.Should().BeSameAs(expected);
+        }
+
+        [TestMethod]
+        public async Task GetPaymentStatus_WhenServiceSucceeds_ReturnsOkWithResult()
+        {
+            var controller = new CospailSoapController(_service.Object);
+            var paymentId = Guid.NewGuid();
+            var expected = new PagoCospailResponseDto { PagoCospailId = paymentId };
+            _service.Setup(x => x.GetPaymentStatusAsync(paymentId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expected);
+
+            var result = await controller.GetPaymentStatus(paymentId, CancellationToken.None);
+
+            var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+            ok.Value.Should().BeSameAs(expected);
+        }
     }
 
     [TestClass]

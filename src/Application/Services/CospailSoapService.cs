@@ -3,8 +3,10 @@ using Application.DTOs.Cospail.Requests;
 using Application.DTOs.Cospail.Responses;
 using Application.Interfaces.External;
 using Application.Interfaces.Internal;
+using Application.Interfaces.Persistence;
 using Domain.Entities;
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Services;
 
@@ -13,7 +15,9 @@ namespace Application.Services;
 /// </summary>
 public sealed class CospailSoapService(
     ICospailSoapClient cospailSoapClient,
-    IValidator<ConfirmPaymentRequestDto> confirmPaymentValidator
+    IPaymentsDbContext dbContext,
+    IValidator<ConfirmPaymentRequestDto> confirmPaymentValidator,
+    IValidator<InitiatePaymentRequestDto> initiatePaymentValidator
 ) : ICospailSoapService
 {
     private static readonly TimeZoneInfo BoliviaTimeZone = GetBoliviaTimeZone();
@@ -117,6 +121,161 @@ public sealed class CospailSoapService(
             MemberName = debtResponse.MemberName
         };
     }
+
+    public async Task<RecordPaymentResponseDto> RecordDebtPaymentAsync(
+        int creditNumber,
+        int type,
+        decimal amount,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var paymentDateTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, BoliviaTimeZone);
+
+        return await cospailSoapClient.RecordPaymentAsync(
+            new RecordPaymentRequestDto
+            {
+                CreditNumber = creditNumber,
+                Type = type,
+                Amount = amount,
+                PaymentDate = paymentDateTime,
+                PaymentTime = paymentDateTime.ToString("HH:mm:ss")
+            },
+            cancellationToken
+        );
+    }
+
+    public async Task<PagoCospailResponseDto> InitiatePaymentAsync(
+        InitiatePaymentRequestDto request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        request.DocumentId = request.DocumentId.Trim();
+
+        await initiatePaymentValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var debtResponse = await cospailSoapClient.GetMemberDebtByDocumentAsync(
+            request.FixedCode,
+            request.DocumentId,
+            cancellationToken
+        );
+
+        if (debtResponse.Status == MemberDebtStatus.MemberNotFound)
+        {
+            throw new InvalidOperationException("El socio no existe en Cospail.");
+        }
+
+        if (debtResponse.Status == MemberDebtStatus.DocumentMismatch)
+        {
+            throw new InvalidOperationException("El documento no coincide con el código fijo.");
+        }
+
+        if (debtResponse.Status == MemberDebtStatus.NoDebt)
+        {
+            throw new InvalidOperationException("El socio no tiene deudas pendientes.");
+        }
+
+        var availableDebts = debtResponse.Debts.ToList();
+        var selectedDebts = new List<DebtItemDto>();
+
+        foreach (var item in request.Debts)
+        {
+            var index = availableDebts.FindIndex(x =>
+                x.CreditNumber == item.CreditNumber
+                && x.Type == item.Type
+                && x.Amount == item.Amount
+            );
+
+            if (index < 0)
+            {
+                throw new InvalidOperationException(
+                    $"La deuda {item.CreditNumber} (tipo {item.Type}) no coincide con la deuda registrada en Cospail."
+                );
+            }
+
+            selectedDebts.Add(availableDebts[index]);
+            availableDebts.RemoveAt(index);
+        }
+
+        var totalAmount = selectedDebts.Sum(x => x.Amount);
+
+        var pagoCospail = new PagoCospail(
+            request.FixedCode,
+            request.DocumentId,
+            debtResponse.MemberName,
+            totalAmount,
+            DateTime.UtcNow
+        );
+
+        foreach (var deuda in selectedDebts)
+        {
+            pagoCospail.AddDeuda(
+                new DeudaCospail(
+                    request.FixedCode,
+                    request.DocumentId,
+                    debtResponse.MemberName,
+                    deuda.CreditNumber,
+                    deuda.Type,
+                    deuda.NoticeNumber,
+                    deuda.Year,
+                    deuda.Month,
+                    deuda.Period,
+                    deuda.Amount
+                )
+            );
+        }
+
+        dbContext.PagosCospail.Add(pagoCospail);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return ToResponse(pagoCospail);
+    }
+
+    public async Task<PagoCospailResponseDto> GetPaymentStatusAsync(
+        Guid pagoCospailId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var pagoCospail = await dbContext
+            .PagosCospail.Include(x => x.Deudas)
+            .SingleOrDefaultAsync(x => x.Id == pagoCospailId, cancellationToken);
+
+        if (pagoCospail is null)
+        {
+            throw new KeyNotFoundException(
+                "No se encontró un pago con el pagoCospailId proporcionado."
+            );
+        }
+
+        return ToResponse(pagoCospail);
+    }
+
+    private static PagoCospailResponseDto ToResponse(PagoCospail pagoCospail) =>
+        new()
+        {
+            PagoCospailId = pagoCospail.Id,
+            FixedCode = pagoCospail.FixedCode,
+            DocumentId = pagoCospail.DocumentId,
+            MemberName = pagoCospail.MemberName,
+            TotalAmount = pagoCospail.TotalAmount,
+            Status = pagoCospail.Status,
+            CreatedAtUtc = pagoCospail.CreatedAtUtc,
+            Debts = pagoCospail
+                .Deudas.Select(x => new PagoDebtResponseDto
+                {
+                    CreditNumber = x.CreditNumber,
+                    Type = x.Type,
+                    NoticeNumber = x.NoticeNumber,
+                    Year = x.Year,
+                    Month = x.Month,
+                    Period = x.Period,
+                    MemberName = x.MemberName,
+                    Amount = x.Amount,
+                    Status = x.Status
+                })
+                .ToList()
+        };
 
     private static TimeZoneInfo GetBoliviaTimeZone()
     {

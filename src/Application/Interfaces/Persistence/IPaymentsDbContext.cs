@@ -14,6 +14,16 @@ public interface IPaymentsDbContext
     DbSet<PagoQr> PagosQr { get; }
 
     /// <summary>
+    /// Pagos agrupados de deudas de Cospail.
+    /// </summary>
+    DbSet<PagoCospail> PagosCospail { get; }
+
+    /// <summary>
+    /// Deudas de Cospail incluidas en un pago.
+    /// </summary>
+    DbSet<DeudaCospail> DeudasCospail { get; }
+
+    /// <summary>
     /// Persiste todos los cambios pendientes.
     /// </summary>
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

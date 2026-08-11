@@ -338,4 +338,83 @@ public sealed class ValidatorsTests
             result.Errors.Should().Contain(x => x.PropertyName == nameof(request.Amount));
         }
     }
+
+    [TestClass]
+    public sealed class InitiatePaymentRequestDtoValidatorTests
+    {
+        private readonly InitiatePaymentRequestDtoValidator _validator = new();
+
+        [TestMethod]
+        public void Validate_WhenRequestIsValid_ReturnsNoErrors()
+        {
+            var request = CreateRequest();
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeTrue();
+        }
+
+        [TestMethod]
+        public void Validate_WhenNoDebts_ReturnsError()
+        {
+            var request = CreateRequest();
+            request.Debts = new List<InitiatePaymentDebtDto>();
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.Debts));
+        }
+
+        [TestMethod]
+        public void Validate_WhenManyDebts_ReturnsNoErrors()
+        {
+            var request = CreateRequest();
+            request.Debts = Enumerable
+                .Range(1, 6)
+                .Select(i => new InitiatePaymentDebtDto { CreditNumber = i, Type = 1, Amount = 10m })
+                .ToList();
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeTrue();
+        }
+
+        [TestMethod]
+        public void Validate_WhenDebtCreditNumberIsZero_ReturnsError()
+        {
+            var request = CreateRequest();
+            request.Debts = new List<InitiatePaymentDebtDto>
+            {
+                new() { CreditNumber = 0, Type = 1, Amount = 10m }
+            };
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.PropertyName == "Debts[0].CreditNumber");
+        }
+
+        [TestMethod]
+        public void Validate_WhenFixedCodeIsZero_ReturnsError()
+        {
+            var request = CreateRequest();
+            request.FixedCode = 0;
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.FixedCode));
+        }
+
+        private static InitiatePaymentRequestDto CreateRequest() => new()
+        {
+            FixedCode = 12345,
+            DocumentId = "1234567",
+            Debts = new List<InitiatePaymentDebtDto>
+            {
+                new() { CreditNumber = 1, Type = 1, Amount = 100m }
+            }
+        };
+    }
 }

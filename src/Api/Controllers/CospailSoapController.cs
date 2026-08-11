@@ -78,4 +78,38 @@ public class CospailSoapController : ControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    /// Valida y persiste un pago agrupado de una o más deudas de Cospail.
+    /// </summary>
+    /// <param name="request">Deudas seleccionadas para el pago.</param>
+    /// <param name="cancellationToken">Token de cancelación.</param>
+    [HttpPost("payments/initiate")]
+    [ProducesResponseType(typeof(PagoCospailResponseDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> InitiatePayment(
+        [FromBody] InitiatePaymentRequestDto request,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await _cospailService.InitiatePaymentAsync(request, cancellationToken);
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Consulta el estado actual de un pago agrupado de deudas de Cospail.
+    /// </summary>
+    /// <param name="pagoCospailId">Identificador del pago.</param>
+    /// <param name="cancellationToken">Token de cancelación.</param>
+    [HttpGet("payments/{pagoCospailId:guid}")]
+    [ProducesResponseType(typeof(PagoCospailResponseDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPaymentStatus(
+        [FromRoute] Guid pagoCospailId,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await _cospailService.GetPaymentStatusAsync(pagoCospailId, cancellationToken);
+
+        return Ok(result);
+    }
 }
