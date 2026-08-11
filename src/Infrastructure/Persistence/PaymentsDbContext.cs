@@ -26,6 +26,11 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
     /// </summary>
     public DbSet<DeudaCospail> DeudasCospail => Set<DeudaCospail>();
 
+    /// <summary>
+    /// Notificaciones de pago QR recibidas de Banco Económico.
+    /// </summary>
+    public DbSet<NotificacionPagoQr> NotificacionesPagoQr => Set<NotificacionPagoQr>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +39,7 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
         ConfigurePagoQr(modelBuilder);
         ConfigurePagoCospail(modelBuilder);
         ConfigureDeudaCospail(modelBuilder);
+        ConfigureNotificacionPagoQr(modelBuilder);
     }
 
     private static void ConfigurePagoQr(ModelBuilder modelBuilder)
@@ -106,5 +112,36 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
             .HasForeignKey(x => x.PagoCospailId)
             .OnDelete(DeleteBehavior.Cascade);
         deudaCospail.HasIndex(x => new { x.FixedCode, x.CreditNumber, x.Type, x.Status });
+    }
+
+    private static void ConfigureNotificacionPagoQr(ModelBuilder modelBuilder)
+    {
+        var notificacion = modelBuilder.Entity<NotificacionPagoQr>();
+        notificacion.ToTable("notificaciones_pago_qr");
+        notificacion.HasKey(x => x.Id);
+        notificacion.Property(x => x.Id).HasColumnName("id");
+        notificacion.Property(x => x.PagoQrId).HasColumnName("pago_qr_id");
+        notificacion.Property(x => x.QrId).HasColumnName("qr_id").HasMaxLength(100).IsRequired();
+        notificacion.Property(x => x.TransactionId).HasColumnName("transaction_id").HasMaxLength(100).IsRequired();
+        notificacion.Property(x => x.PaymentDate).HasColumnName("payment_date").HasMaxLength(30).IsRequired();
+        notificacion.Property(x => x.PaymentTime).HasColumnName("payment_time").HasMaxLength(10).IsRequired();
+        notificacion.Property(x => x.PaymentAtUtc).HasColumnName("payment_at_utc").HasColumnType("timestamp with time zone").IsRequired();
+        notificacion.Property(x => x.Currency).HasColumnName("currency").HasMaxLength(3).IsRequired();
+        notificacion.Property(x => x.Amount).HasColumnName("amount").HasPrecision(18, 2).IsRequired();
+        notificacion.Property(x => x.SenderBankCode).HasColumnName("sender_bank_code").HasMaxLength(32).IsRequired();
+        notificacion.Property(x => x.SenderName).HasColumnName("sender_name").HasMaxLength(200).IsRequired();
+        notificacion.Property(x => x.SenderDocumentId).HasColumnName("sender_document_id").HasMaxLength(50).IsRequired();
+        notificacion.Property(x => x.SenderAccount).HasColumnName("sender_account").HasMaxLength(50).IsRequired();
+        notificacion.Property(x => x.Description).HasColumnName("description").HasMaxLength(500).IsRequired();
+        notificacion.Property(x => x.BranchCode).HasColumnName("branch_code").HasMaxLength(5);
+        notificacion.Property(x => x.ReceivedAtUtc).HasColumnName("received_at_utc").HasColumnType("timestamp with time zone").IsRequired();
+        notificacion.HasOne(x => x.Qr)
+            .WithMany()
+            .HasForeignKey(x => x.PagoQrId)
+            .IsRequired();
+        notificacion.HasIndex(x => x.PagoQrId);
+        notificacion.HasIndex(x => x.QrId);
+        notificacion.HasIndex(x => x.TransactionId);
+        notificacion.HasIndex(x => x.ReceivedAtUtc);
     }
 }

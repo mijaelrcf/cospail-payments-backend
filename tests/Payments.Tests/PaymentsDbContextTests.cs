@@ -61,6 +61,27 @@ public sealed class PaymentsDbContextTests
     }
 
     [TestMethod]
+    public void Model_MapsPagoQrNotificationsTable()
+    {
+        var options = new DbContextOptionsBuilder<PaymentsDbContext>()
+            .UseNpgsql("Host=localhost;Database=cospail_payments_model_test;Username=postgres;Password=unused")
+            .Options;
+        using var context = new PaymentsDbContext(options);
+
+        var notificacion = context.Model.FindEntityType(typeof(NotificacionPagoQr));
+        notificacion.Should().NotBeNull();
+        notificacion!.GetTableName().Should().Be("notificaciones_pago_qr");
+        notificacion!.FindProperty(nameof(NotificacionPagoQr.PagoQrId))!.IsNullable.Should().BeFalse();
+        notificacion!.FindProperty(nameof(NotificacionPagoQr.SenderName))!.GetMaxLength().Should().Be(200);
+        notificacion!.FindProperty(nameof(NotificacionPagoQr.PaymentAtUtc))!.GetColumnType().Should().Be("timestamp with time zone");
+        notificacion!.FindProperty(nameof(NotificacionPagoQr.ReceivedAtUtc))!.GetColumnType().Should().Be("timestamp with time zone");
+        notificacion!.GetForeignKeys().Should().Contain(x =>
+            x.PrincipalEntityType.ClrType == typeof(PagoQr));
+        notificacion!.GetIndexes().Should().Contain(x =>
+            x.Properties.Single().Name == nameof(NotificacionPagoQr.PagoQrId));
+    }
+
+    [TestMethod]
     public async Task PostgreSql_MigrationAndPersistence_WorkWhenConnectionIsConfigured()
     {
         var connectionString = Environment.GetEnvironmentVariable("PAYMENTS_TEST_CONNECTION_STRING");

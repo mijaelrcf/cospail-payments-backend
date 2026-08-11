@@ -171,26 +171,41 @@ public sealed class BancoEconomicoService(
             throw new ArgumentException("payment.currency no coincide con la moneda del QR.");
         }
 
+        var paymentAtUtc = ParsePaymentDateTimeUtc(payment.PaymentDate, payment.PaymentTime);
+
         if (pagoQr.Status == PagoQrStatus.Pendiente)
         {
-            pagoQr.MarkAsPaid(ParsePaymentDateTimeUtc(payment.PaymentDate, payment.PaymentTime));
+            pagoQr.MarkAsPaid(paymentAtUtc);
         }
 
-        var shouldSave = pagoQr.Status == PagoQrStatus.Pagado;
+        dbContext.NotificacionesPagoQr.Add(new NotificacionPagoQr(
+            pagoQr,
+            payment.QrId.Trim(),
+            payment.TransactionId.Trim(),
+            payment.PaymentDate,
+            payment.PaymentTime,
+            paymentAtUtc,
+            payment.Currency,
+            payment.Amount,
+            payment.SenderBankCode.Trim(),
+            payment.SenderName.Trim(),
+            payment.SenderDocumentId.Trim(),
+            payment.SenderAccount.Trim(),
+            payment.Description.Trim(),
+            string.IsNullOrWhiteSpace(payment.BranchCode) ? null : payment.BranchCode.Trim(),
+            DateTime.UtcNow
+        ));
 
         var pagoCospail = await dbContext
             .PagosCospail.Include(x => x.Deudas)
             .SingleOrDefaultAsync(x => x.PagoQrId == pagoQr.Id, cancellationToken);
 
-        if (pagoCospail is not null && await RegisterDebtsInCospailAsync(pagoCospail, cancellationToken))
+        if (pagoCospail is not null)
         {
-            shouldSave = true;
+            await RegisterDebtsInCospailAsync(pagoCospail, cancellationToken);
         }
 
-        if (shouldSave)
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return new NotifyPaymentQrResponseDto
         {

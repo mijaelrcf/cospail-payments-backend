@@ -146,6 +146,12 @@ Económico.
 - Para un QR pendiente cuyo `transactionId` coincide, la notificación lo marca
   como `Pagado` y conserva la fecha/hora de pago en UTC. Las repeticiones de
   una notificación ya procesada son idempotentes.
+- Cada notificación válida y acusada con `responseCode: 0` se persiste en la
+  tabla `notificaciones_pago_qr` con una instantánea del pago: `qrId`,
+  `transactionId`, fecha y hora de pago (en UTC e informadas por el banco),
+  moneda, importe, `senderBankCode`, `senderName`, `senderDocumentId`,
+  `senderAccount`, `description`, `branchCode` y la fecha/hora UTC de recepción;
+  los reintentos del banco quedan registrados como nuevas filas.
 - Un QR inexistente o un `transactionId` no coincidente devuelve `responseCode: 1`.
 - Un importe distinto al solicitado (salvo que el QR permita `modifyAmount`) o
   una moneda distinta a la del QR devuelven `responseCode: 1`.
@@ -171,7 +177,7 @@ datos están disponibles.
 | NFR-003 | Los errores no controlados se registran y devuelven `application/problem+json` con HTTP 500; `ValidationException` y `ArgumentException` se convierten en 400 y `KeyNotFoundException` en 404. |
 | NFR-004 | Los clientes externos usan `HttpClient`; tanto el cliente de COSPAIL como el de Banco Económico tienen 30 segundos de timeout. |
 | NFR-005 | Las credenciales y las URLs de proveedores se obtienen desde `ExternalServices:CospailSoap` y `ExternalServices:BanEcoApi`. |
-| NFR-006 | Se registra información de trazabilidad de QR (transacción, QR, importe y datos del ordenante) mediante el sistema de logging. |
+| NFR-006 | Se registra información de trazabilidad de QR (transacción, QR, importe y datos del ordenante) en la tabla `notificaciones_pago_qr` y mediante el sistema de logging. |
 | NFR-007 | Los logs de error del cliente SOAP truncan la respuesta externa para evitar exponer datos personales. |
 
 ## 5. Fuera de alcance / trabajo pendiente explícito

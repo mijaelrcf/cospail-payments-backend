@@ -24,6 +24,11 @@ public interface IPaymentsDbContext
     DbSet<DeudaCospail> DeudasCospail { get; }
 
     /// <summary>
+    /// Notificaciones de pago QR recibidas de Banco Económico.
+    /// </summary>
+    DbSet<NotificacionPagoQr> NotificacionesPagoQr { get; }
+
+    /// <summary>
     /// Persiste todos los cambios pendientes.
     /// </summary>
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

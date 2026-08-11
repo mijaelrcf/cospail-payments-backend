@@ -68,6 +68,51 @@ public sealed class BancoEconomicoServiceTests
     }
 
     [TestMethod]
+    public async Task HandlePaymentNotificationAsync_PersistsNotificationWithSenderData()
+    {
+        await using var db = CreateInMemoryDb();
+        var qr = CreatePendingQr();
+        db.PagosQr.Add(qr);
+        await db.SaveChangesAsync();
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
+
+        await service.HandlePaymentNotificationAsync(CreateNotification());
+
+        var notification = db.NotificacionesPagoQr.Single();
+        notification.PagoQrId.Should().Be(qr.Id);
+        notification.QrId.Should().Be("qr-001");
+        notification.TransactionId.Should().Be("tx-001");
+        notification.Amount.Should().Be(35.50m);
+        notification.Currency.Should().Be("BOB");
+        notification.PaymentDate.Should().Be("2026-07-14");
+        notification.PaymentTime.Should().Be("15:00:27");
+        notification.PaymentAtUtc.Should().Be(new DateTime(2026, 7, 14, 19, 0, 27, DateTimeKind.Utc));
+        notification.SenderBankCode.Should().Be("1016");
+        notification.SenderName.Should().Be("Cliente");
+        notification.SenderAccount.Should().Be("****1234");
+        notification.Description.Should().Be("Pago");
+        notification.BranchCode.Should().Be("001");
+        notification.ReceivedAtUtc.Kind.Should().Be(DateTimeKind.Utc);
+    }
+
+    [TestMethod]
+    public async Task HandlePaymentNotificationAsync_WhenRepeated_StoresAnotherNotification()
+    {
+        await using var db = CreateInMemoryDb();
+        var qr = CreatePendingQr();
+        qr.MarkAsPaid(DateTime.UtcNow);
+        db.PagosQr.Add(qr);
+        await db.SaveChangesAsync();
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
+
+        await service.HandlePaymentNotificationAsync(CreateNotification());
+        await service.HandlePaymentNotificationAsync(CreateNotification());
+
+        db.NotificacionesPagoQr.Should().HaveCount(2);
+        db.PagosQr.Single(x => x.QrId == "qr-001").Status.Should().Be(PagoQrStatus.Pagado);
+    }
+
+    [TestMethod]
     public async Task HandlePaymentNotificationAsync_WhenQrDoesNotExist_ReturnsValidationFailure()
     {
         await using var db = CreateInMemoryDb();
@@ -402,6 +447,8 @@ public sealed class BancoEconomicoServiceTests
         public DbSet<PagoCospail> PagosCospail => inner.PagosCospail;
 
         public DbSet<DeudaCospail> DeudasCospail => inner.DeudasCospail;
+
+        public DbSet<NotificacionPagoQr> NotificacionesPagoQr => inner.NotificacionesPagoQr;
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
             throw new DbUpdateException(

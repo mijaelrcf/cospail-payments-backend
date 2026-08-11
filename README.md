@@ -33,7 +33,7 @@ Flujos principales:
 1. Consulta de deudas: `GET /api/CospailSoap/member-debt-by-document` devuelve el socio y su lista de deudas vigentes en COSPAIL.
 2. Inicio del pago: `POST /api/CospailSoap/payments/initiate` valida las deudas seleccionadas (una o más) contra COSPAIL y las persiste en PostgreSQL con estado `Pendiente`, agrupadas en un `PagoCospail`.
 3. Generación QR: `POST /api/BancoEconomico/generate-qr` recibe el `pagoCospailId`, calcula el total de las deudas, se autentica ante Banco Económico y solicita el QR. El pago pasa a `QRGenerado`.
-4. Notificación QR: Banco Económico llama a `POST /api/qrsimple/notifyPaymentQR`. El callback valida la notificación, marca el pago y sus deudas como `Pagado` y registra cada cobro en COSPAIL mediante `grabarCobrosWEB`. Si todos se registran, el pago pasa a `CospailRegistrado`; si alguno falla, queda en `Pagado` para reintento o conciliación.
+4. Notificación QR: Banco Económico llama a `POST /api/qrsimple/notifyPaymentQR`. El callback valida la notificación, marca el pago y sus deudas como `Pagado`, registra los datos del ordenante y la transacción en `notificaciones_pago_qr` (para saber quién pagó, importe, moneda y demás datos) y registra cada cobro en COSPAIL mediante `grabarCobrosWEB`. Si todos se registran, el pago pasa a `CospailRegistrado`; si alguno falla, queda en `Pagado` para reintento o conciliación.
 5. Estado del pago: `GET /api/CospailSoap/payments/{pagoCospailId}` permite al frontend consultar el estado del pago y de cada deuda.
 
 ### Flujo de pago con QR (paso a paso)
@@ -69,7 +69,32 @@ El frontend siempre consume primero **initiate** y después **generate-qr**:
    ```
 
    Respuesta: el QR emitido por Banco Económico (`qrId` y `qrImage`).
-4. El usuario paga el QR; Banco Económico llama al **callback** `POST /api/qrsimple/notifyPaymentQR`, cuyo resultado se puede verificar con **`GET /api/CospailSoap/payments/{pagoCospailId}`** hasta que el pago llegue a `CospailRegistrado`.
+4. El usuario paga el QR; Banco Económico llama al **callback** `POST /api/qrsimple/notifyPaymentQR`:
+
+   ```json
+   {
+     "payment": {
+       "qrId": "22113001016800000017",
+       "transactionId": "tx-abc-123",
+       "paymentDate": "2026-08-11T00:00:00",
+       "paymentTime": "10:23:45",
+       "currency": "BOB",
+       "amount": 150.00,
+       "senderBankCode": "1016",
+       "senderName": "CLIENTE DE PRUEBA 1234567",
+       "senderDocumentId": "1234567",
+       "senderAccount": "******5691",
+       "description": "Pago de deudas Cospail",
+       "branchCode": "001"
+     }
+   }
+   ```
+
+   Respuesta del callback (`200 OK`): `{"responseCode": 0, "message": ""}`.
+
+   Si el `qrId` existe y el `transactionId` coincide, el pago y sus deudas pasan a `Pagado`
+   y la notificación (importe, moneda, fecha/hora de pago y datos del ordenante) se persiste
+   en `notificaciones_pago_qr`. El resultado se puede verificar con **`GET /api/CospailSoap/payments/{pagoCospailId}`** hasta que el pago llegue a `CospailRegistrado`. Con `responseCode: 1` los datos son inválidos o no coinciden con el QR; con `responseCode: 99`, un error interno.
 
 > Sin `pagoCospailId`, `generate-qr` sigue generando un QR independiente con el `amount` y `currency` proporcionados, sin asociar deudas.
 
