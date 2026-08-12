@@ -361,20 +361,20 @@ public sealed class BancoEconomicoServiceTests
     private static BancoEconomicoService CreateService(
         Mock<IBancoEconomicoQrClient> client,
         IPaymentsDbContext db,
-        Mock<ICospailSoapService>? cospailSoapService = null
+        Mock<ICospailService>? cospailService = null
     ) =>
         new(
             client.Object,
             db,
             new GenerateQrRequestDtoValidator(),
             new NotifyPaymentQrRequestDtoValidator(),
-            (cospailSoapService ?? CreateCospailService()).Object,
+            (cospailService ?? CreateCospailService()).Object,
             NullLogger<BancoEconomicoService>.Instance
         );
 
-    private static Mock<ICospailSoapService> CreateCospailService(bool recordDebtSuccess = true)
+    private static Mock<ICospailService> CreateCospailService(bool recordDebtSuccess = true)
     {
-        var mock = new Mock<ICospailSoapService>();
+        var mock = new Mock<ICospailService>();
         mock.Setup(x => x.RecordDebtPaymentAsync(
                 It.IsAny<int>(),
                 It.IsAny<int>(),
@@ -457,3 +457,4 @@ public sealed class BancoEconomicoServiceTests
             );
     }
 }
+

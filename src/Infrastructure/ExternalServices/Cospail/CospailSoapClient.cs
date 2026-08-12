@@ -35,20 +35,6 @@ public sealed class CospailSoapClient : ICospailSoapClient
         _logger = logger;
     }
 
-    public async Task<CospailDebtResponseDto> GetDebtByFixedCodeAsync(
-        int fixedCode,
-        CancellationToken cancellationToken = default
-    )
-    {
-        var operationName = "ObtenerDeudaSocioCF";
-
-        var parameters = new Dictionary<string, string> { ["liCfijo"] = fixedCode.ToString() };
-
-        var xml = await SendSoapRequestAsync(operationName, parameters, cancellationToken);
-
-        return ParseDebtByFixedCodeResponse(xml, fixedCode);
-    }
-
     public async Task<GetMemberDebtByDocumentResponse> GetMemberDebtByDocumentAsync(
         int fixedCode,
         string documentId,
@@ -168,32 +154,6 @@ public sealed class CospailSoapClient : ICospailSoapClient
   </soap:Body>
 </soap:Envelope>
 """;
-    }
-
-    private static CospailDebtResponseDto ParseDebtByFixedCodeResponse(string xml, int fixedCode)
-    {
-        var resultElement = GetSoapResultElement(xml, "ObtenerDeudaSocioCF");
-        var tableElement = GetTableElements(resultElement).FirstOrDefault();
-
-        if (tableElement is null)
-        {
-            throw new KeyNotFoundException(
-                "No se encontró información de deuda para el código fijo proporcionado."
-            );
-        }
-
-        return new CospailDebtResponseDto
-        {
-            FixedCode = fixedCode,
-            NoticeNumber = ParseNullableInt(tableElement, "NAviso"),
-            CreditNumber = ParseNullableInt(tableElement, "NCredito"),
-            Type = ParseNullableInt(tableElement, "Tipo"),
-            Year = ParseNullableInt(tableElement, "Anio"),
-            Month = ParseNullableInt(tableElement, "Mes"),
-            CustomerName = ParseString(tableElement, "Nombre"),
-            Period = ParseString(tableElement, "Periodo"),
-            Amount = ParseNullableDecimal(tableElement, "Deuda")
-        };
     }
 
     private static GetMemberDebtByDocumentResponse ParseDebtByDocumentResponse(
@@ -332,12 +292,6 @@ public sealed class CospailSoapClient : ICospailSoapClient
         return int.TryParse(value, out var number) ? number : 0;
     }
 
-    private static int? ParseNullableInt(XElement parent, string name)
-    {
-        var value = GetElementValue(parent, name);
-        return int.TryParse(value, out var number) ? number : null;
-    }
-
     private static decimal ParseDecimal(XElement parent, string name)
     {
         var value = GetElementValue(parent, name);
@@ -349,19 +303,6 @@ public sealed class CospailSoapClient : ICospailSoapClient
         )
             ? number
             : 0m;
-    }
-
-    private static decimal? ParseNullableDecimal(XElement parent, string name)
-    {
-        var value = GetElementValue(parent, name);
-        return decimal.TryParse(
-            value,
-            NumberStyles.Any,
-            CultureInfo.InvariantCulture,
-            out var number
-        )
-            ? number
-            : null;
     }
 
     private static string ParseString(XElement parent, string name)

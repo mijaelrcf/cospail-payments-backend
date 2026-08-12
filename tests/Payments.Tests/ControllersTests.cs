@@ -17,28 +17,14 @@ namespace Payments.Tests;
 public sealed class ControllersTests
 {
     [TestClass]
-    public sealed class CospailSoapControllerTests
+    public sealed class CospailControllerTests
     {
-        private readonly Mock<ICospailSoapService> _service = new();
-
-        [TestMethod]
-        public async Task GetDebt_WhenServiceSucceeds_ReturnsOkWithResult()
-        {
-            var controller = new CospailSoapController(_service.Object);
-            var expected = new CospailDebtResponseDto { FixedCode = 123 };
-            _service.Setup(x => x.GetDebtAsync(123, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(expected);
-
-            var result = await controller.GetDebt(123, CancellationToken.None);
-
-            var ok = result.Should().BeOfType<OkObjectResult>().Subject;
-            ok.Value.Should().BeSameAs(expected);
-        }
+        private readonly Mock<ICospailService> _service = new();
 
         [TestMethod]
         public async Task GetMemberDebtByDocument_WhenFixedCodeIsNotPositive_ReturnsBadRequest()
         {
-            var controller = new CospailSoapController(_service.Object);
+            var controller = new CospailController(_service.Object);
 
             var result = await controller.GetMemberDebtByDocument(
                 0,
@@ -60,7 +46,7 @@ public sealed class ControllersTests
         [TestMethod]
         public async Task GetMemberDebtByDocument_WhenDocumentIdIsEmpty_ReturnsBadRequest()
         {
-            var controller = new CospailSoapController(_service.Object);
+            var controller = new CospailController(_service.Object);
 
             var result = await controller.GetMemberDebtByDocument(
                 123,
@@ -82,7 +68,7 @@ public sealed class ControllersTests
         [TestMethod]
         public async Task GetMemberDebtByDocument_WhenServiceSucceeds_ReturnsOkWithResult()
         {
-            var controller = new CospailSoapController(_service.Object);
+            var controller = new CospailController(_service.Object);
             var expected = new GetMemberDebtByDocumentResponse { FixedCode = 123 };
             _service.Setup(x => x.GetMemberDebtByDocumentAsync(
                     123,
@@ -103,7 +89,7 @@ public sealed class ControllersTests
         [TestMethod]
         public async Task ConfirmPayment_WhenServiceSucceeds_ReturnsOkWithResult()
         {
-            var controller = new CospailSoapController(_service.Object);
+            var controller = new CospailController(_service.Object);
             var request = new ConfirmPaymentRequestDto
             {
                 FixedCode = 123,
@@ -123,7 +109,7 @@ public sealed class ControllersTests
         [TestMethod]
         public async Task InitiatePayment_WhenServiceSucceeds_ReturnsOkWithResult()
         {
-            var controller = new CospailSoapController(_service.Object);
+            var controller = new CospailController(_service.Object);
             var request = new InitiatePaymentRequestDto
             {
                 FixedCode = 123,
@@ -142,7 +128,7 @@ public sealed class ControllersTests
         [TestMethod]
         public async Task GetPaymentStatus_WhenServiceSucceeds_ReturnsOkWithResult()
         {
-            var controller = new CospailSoapController(_service.Object);
+            var controller = new CospailController(_service.Object);
             var paymentId = Guid.NewGuid();
             var expected = new PagoCospailResponseDto { PagoCospailId = paymentId };
             _service.Setup(x => x.GetPaymentStatusAsync(paymentId, It.IsAny<CancellationToken>()))
@@ -295,3 +281,4 @@ public sealed class ControllersTests
         };
     }
 }
+

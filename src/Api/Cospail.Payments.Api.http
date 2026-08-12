@@ -3,19 +3,14 @@
 GET {{Api_HostAddress}}/health
 Accept: application/json
 
-###
+### 
 
-GET {{Api_HostAddress}}/api/CospailSoap/debt/123
+GET {{Api_HostAddress}}/api/Cospail/member-debt-by-document?fixedCode=123&documentId=1234567
 Accept: application/json
 
 ###
 
-GET {{Api_HostAddress}}/api/CospailSoap/member-debt-by-document?fixedCode=123&documentId=1234567
-Accept: application/json
-
-###
-
-POST {{Api_HostAddress}}/api/CospailSoap/payments/confirm
+POST {{Api_HostAddress}}/api/Cospail/payments/confirm
 Content-Type: application/json
 
 {
@@ -46,3 +41,4 @@ Content-Type: application/json
 }
 
 ###
+

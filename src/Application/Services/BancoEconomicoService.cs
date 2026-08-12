@@ -19,7 +19,7 @@ public sealed class BancoEconomicoService(
     IPaymentsDbContext dbContext,
     IValidator<GenerateQrRequestDto> generateQrValidator,
     IValidator<NotifyPaymentQrRequestDto> notifyPaymentValidator,
-    ICospailSoapService cospailSoapService,
+    ICospailService cospailService,
     ILogger<BancoEconomicoService> logger
 ) : IBancoEconomicoService
 {
@@ -240,7 +240,7 @@ public sealed class BancoEconomicoService(
         {
             try
             {
-                var response = await cospailSoapService.RecordDebtPaymentAsync(
+                var response = await cospailService.RecordDebtPaymentAsync(
                     deuda.CreditNumber,
                     deuda.Type,
                     deuda.Amount,

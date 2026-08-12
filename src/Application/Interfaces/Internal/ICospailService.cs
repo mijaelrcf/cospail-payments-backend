@@ -6,13 +6,8 @@ namespace Application.Interfaces.Internal;
 /// <summary>
 /// Servicio de aplicación para consultas relacionadas a Cospail.
 /// </summary>
-public interface ICospailSoapService
+public interface ICospailService
 {
-    Task<CospailDebtResponseDto> GetDebtAsync(
-        int fixedCode,
-        CancellationToken cancellationToken = default
-    );
-
     Task<GetMemberDebtByDocumentResponse> GetMemberDebtByDocumentAsync(
         int fixedCode,
         string documentId,

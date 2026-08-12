@@ -7,26 +7,13 @@ namespace Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class CospailSoapController : ControllerBase
+public class CospailController : ControllerBase
 {
-    private readonly ICospailSoapService _cospailService;
+    private readonly ICospailService _cospailService;
 
-    public CospailSoapController(ICospailSoapService cospailService)
+    public CospailController(ICospailService cospailService)
     {
         _cospailService = cospailService;
-    }
-
-    /// <summary>
-    /// Consulta la deuda de un socio mediante código fijo.
-    /// </summary>
-    /// <param name="fixedCode">Código fijo del socio.</param>
-    /// <param name="cancellationToken">Token de cancelación.</param>
-    [HttpGet("debt/{fixedCode:int}")]
-    [ProducesResponseType(typeof(CospailDebtResponseDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetDebt(int fixedCode, CancellationToken cancellationToken)
-    {
-        var result = await _cospailService.GetDebtAsync(fixedCode, cancellationToken);
-        return Ok(result);
     }
 
     /// <summary>

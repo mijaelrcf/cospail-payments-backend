@@ -8,11 +8,6 @@ namespace Application.Interfaces.External;
 /// </summary>
 public interface ICospailSoapClient
 {
-    Task<CospailDebtResponseDto> GetDebtByFixedCodeAsync(
-        int fixedCode,
-        CancellationToken cancellationToken = default
-    );
-
     Task<GetMemberDebtByDocumentResponse> GetMemberDebtByDocumentAsync(
         int fixedCode,
         string documentId,

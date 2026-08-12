@@ -33,29 +33,12 @@ en pruebas automatizadas de aceptación.
 
 ## 3. Especificaciones funcionales
 
-### SPEC-001 — Consultar deuda por código fijo
-
-**Objetivo.** Obtener la primera deuda devuelta por COSPAIL para un código fijo.
-
-**Contrato.** `GET /api/CospailSoap/debt/{fixedCode}`.
-
-**Reglas y criterios de aceptación.**
-
-- Dado un `fixedCode` mayor a cero, cuando COSPAIL responde con una tabla de
-  deuda, entonces se devuelve `200 OK` con código fijo, aviso, crédito, tipo,
-  período, socio e importe disponibles.
-- Dado un `fixedCode` menor o igual a cero, entonces se devuelve `400` con
-  Problem Details de validación.
-- Dado que COSPAIL no devuelve una tabla de deuda, entonces se devuelve `404`.
-- La integración invoca la operación SOAP `ObtenerDeudaSocioCF` con el parámetro
-  `liCfijo`.
-
 ### SPEC-002 — Consultar deudas y estado del socio por documento
 
 **Objetivo.** Identificar el estado del socio y sus deudas mediante código fijo
 y CI/NIT.
 
-**Contrato.** `GET /api/CospailSoap/member-debt-by-document?fixedCode={n}&documentId={valor}`.
+**Contrato.** `GET /api/Cospail/member-debt-by-document?fixedCode={n}&documentId={valor}`.
 
 **Reglas y criterios de aceptación.**
 
@@ -76,7 +59,7 @@ y CI/NIT.
 **Objetivo.** Evitar registrar cobros para un socio, documento o deuda que no
 coincidan con la información vigente de COSPAIL.
 
-**Contrato.** `POST /api/CospailSoap/payments/confirm` con `fixedCode`,
+**Contrato.** `POST /api/Cospail/payments/confirm` con `fixedCode`,
 `documentId`, `creditNumber`, `type` y `amount`.
 
 **Reglas y criterios de aceptación.**
@@ -194,8 +177,8 @@ datos están disponibles.
 
 | Especificación | Componentes principales |
 | --- | --- |
-| SPEC-001 y SPEC-002 | `CospailSoapController`, `CospailSoapService`, `CospailSoapClient` |
-| SPEC-003 | `CospailSoapController`, `CospailSoapService`, `CospailSoapClient.RecordPaymentAsync` |
+| SPEC-002 | `CospailController`, `CospailService`, `CospailSoapClient` |
+| SPEC-003 | `CospailController`, `CospailService`, `CospailSoapClient.RecordPaymentAsync` |
 | SPEC-004 | `BancoEconomicoController`, `BancoEconomicoService`, `BancoEconomicoQrClient` |
 | SPEC-005 | `NotifyPaymentQrController`, `BancoEconomicoService.HandlePaymentNotificationAsync` |
 | SPEC-006 | `Program` (`MapHealthChecks` + `AddDbContextCheck`) |
@@ -215,3 +198,4 @@ datos están disponibles.
    criterios de aceptación que dependen de los servicios externos (SOAP COSPAIL
    y API de Banco Económico) requieren verificación manual contra los entornos
    de prueba.
+

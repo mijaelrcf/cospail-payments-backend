@@ -12,7 +12,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddScoped<ICospailSoapService, CospailSoapService>();
+        services.AddScoped<ICospailService, CospailService>();
         services.AddScoped<IBancoEconomicoService, BancoEconomicoService>();
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);

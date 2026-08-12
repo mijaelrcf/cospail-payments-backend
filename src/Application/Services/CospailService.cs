@@ -13,27 +13,14 @@ namespace Application.Services;
 /// <summary>
 /// Servicio de aplicación que orquesta consultas al servicio de Cospail.
 /// </summary>
-public sealed class CospailSoapService(
+public sealed class CospailService(
     ICospailSoapClient cospailSoapClient,
     IPaymentsDbContext dbContext,
     IValidator<ConfirmPaymentRequestDto> confirmPaymentValidator,
     IValidator<InitiatePaymentRequestDto> initiatePaymentValidator
-) : ICospailSoapService
+) : ICospailService
 {
     private static readonly TimeZoneInfo BoliviaTimeZone = GetBoliviaTimeZone();
-    public async Task<CospailDebtResponseDto> GetDebtAsync(
-        int fixedCode,
-        CancellationToken cancellationToken = default
-    )
-    {
-        if (fixedCode <= 0)
-        {
-            throw new ArgumentException("El código fijo debe ser mayor a cero.");
-        }
-
-        return await cospailSoapClient.GetDebtByFixedCodeAsync(fixedCode, cancellationToken);
-    }
-
     public async Task<GetMemberDebtByDocumentResponse> GetMemberDebtByDocumentAsync(
         int fixedCode,
         string documentId,

@@ -24,24 +24,24 @@ Infrastructure (clientes HTTP/SOAP y configuración)
 SOAP/SOA COSPAIL          API Gateway Banco Económico
 ```
 
-- **Api** contiene los controladores `BancoEconomicoController`, `CospailSoapController` y `NotifyPaymentQrController`, además del middleware de errores global.
+- **Api** contiene los controladores `BancoEconomicoController`, `CospailController` y `NotifyPaymentQrController`, además del middleware de errores global.
 - **Application** orquesta los casos de uso y define los contratos/DTOs en `src/Application/DTOs`.
 - **Infrastructure** implementa las integraciones externas mediante `HttpClient`: SOAP manual para COSPAIL y HTTP JSON con Bearer token para Banco Económico.
 
 Flujos principales:
 
-1. Consulta de deudas: `GET /api/CospailSoap/member-debt-by-document` devuelve el socio y su lista de deudas vigentes en COSPAIL.
-2. Inicio del pago: `POST /api/CospailSoap/payments/initiate` valida las deudas seleccionadas (una o más) contra COSPAIL y las persiste en PostgreSQL con estado `Pendiente`, agrupadas en un `PagoCospail`.
+1. Consulta de deudas: `GET /api/Cospail/member-debt-by-document` devuelve el socio y su lista de deudas vigentes en COSPAIL.
+2. Inicio del pago: `POST /api/Cospail/payments/initiate` valida las deudas seleccionadas (una o más) contra COSPAIL y las persiste en PostgreSQL con estado `Pendiente`, agrupadas en un `PagoCospail`.
 3. Generación QR: `POST /api/BancoEconomico/generate-qr` recibe el `pagoCospailId`, calcula el total de las deudas, se autentica ante Banco Económico y solicita el QR. El pago pasa a `QRGenerado`.
 4. Notificación QR: Banco Económico llama a `POST /api/qrsimple/notifyPaymentQR`. El callback valida la notificación, marca el pago y sus deudas como `Pagado`, registra los datos del ordenante y la transacción en `notificaciones_pago_qr` (para saber quién pagó, importe, moneda y demás datos) y registra cada cobro en COSPAIL mediante `grabarCobrosWEB`. Si todos se registran, el pago pasa a `CospailRegistrado`; si alguno falla, queda en `Pagado` para reintento o conciliación.
-5. Estado del pago: `GET /api/CospailSoap/payments/{pagoCospailId}` permite al frontend consultar el estado del pago y de cada deuda.
+5. Estado del pago: `GET /api/Cospail/payments/{pagoCospailId}` permite al frontend consultar el estado del pago y de cada deuda.
 
 ### Flujo de pago con QR (paso a paso)
 
 El frontend siempre consume primero **initiate** y después **generate-qr**:
 
-1. **`POST /api/CospailSoap/member-debt-by-document?fixedCode=123&documentId=CI123`** — consultar las deudas vigentes.
-2. **`POST /api/CospailSoap/payments/initiate`** — el usuario selecciona una o más deudas:
+1. **`POST /api/Cospail/member-debt-by-document?fixedCode=123&documentId=CI123`** — consultar las deudas vigentes.
+2. **`POST /api/Cospail/payments/initiate`** — el usuario selecciona una o más deudas:
 
    ```json
    {
@@ -94,7 +94,7 @@ El frontend siempre consume primero **initiate** y después **generate-qr**:
 
    Si el `qrId` existe y el `transactionId` coincide, el pago y sus deudas pasan a `Pagado`
    y la notificación (importe, moneda, fecha/hora de pago y datos del ordenante) se persiste
-   en `notificaciones_pago_qr`. El resultado se puede verificar con **`GET /api/CospailSoap/payments/{pagoCospailId}`** hasta que el pago llegue a `CospailRegistrado`. Con `responseCode: 1` los datos son inválidos o no coinciden con el QR; con `responseCode: 99`, un error interno.
+   en `notificaciones_pago_qr`. El resultado se puede verificar con **`GET /api/Cospail/payments/{pagoCospailId}`** hasta que el pago llegue a `CospailRegistrado`. Con `responseCode: 1` los datos son inválidos o no coinciden con el QR; con `responseCode: 99`, un error interno.
 
 > Sin `pagoCospailId`, `generate-qr` sigue generando un QR independiente con el `amount` y `currency` proporcionados, sin asociar deudas.
 
@@ -175,17 +175,17 @@ En el entorno `Development`, Swagger queda disponible en `/swagger`. Si prefiere
 
 | Método | Ruta | Propósito |
 | --- | --- | --- |
-| GET | `/api/CospailSoap/member-debt-by-document` | Consulta deudas y estado del socio por código fijo y CI/NIT. |
-| POST | `/api/CospailSoap/payments/initiate` | Valida y persiste un pago agrupado de una o más deudas. |
-| GET | `/api/CospailSoap/payments/{pagoCospailId}` | Consulta el estado de un pago agrupado y sus deudas. |
+| GET | `/api/Cospail/member-debt-by-document` | Consulta deudas y estado del socio por código fijo y CI/NIT. |
+| POST | `/api/Cospail/payments/initiate` | Valida y persiste un pago agrupado de una o más deudas. |
+| GET | `/api/Cospail/payments/{pagoCospailId}` | Consulta el estado de un pago agrupado y sus deudas. |
 | POST | `/api/BancoEconomico/generate-qr` | Genera un QR de cobro (con `pagoCospailId` suma el total de las deudas). |
-| GET | `/api/CospailSoap/debt/{fixedCode}` | Consulta deuda por código fijo. |
-| POST | `/api/CospailSoap/payments/confirm` | Valida y registra un cobro individual en COSPAIL. |
+| POST | `/api/Cospail/payments/confirm` | Valida y registra un cobro individual en COSPAIL. |
 | POST | `/api/qrsimple/notifyPaymentQR` | Callback de pago de Banco Económico. Marca el pago `Pagado` y registra los cobros en COSPAIL. |
 | GET | `/health` | Health check (incluye conectividad con la base de datos). |
 
 Los errores globales se entregan como `application/problem+json`: 400 para argumentos inválidos, 404 para recursos no encontrados y 500 para errores no controlados. El callback QR es la excepción: siempre devuelve 200 y utiliza `responseCode` (`0`, `1` o `99`).
 
 En el callback, `payment.paymentDate` admite `yyyy-MM-dd` o `yyyy-MM-ddTHH:mm:ss` y `payment.branchCode` es opcional.
+
 
 

@@ -15,36 +15,8 @@ using Moq;
 namespace Payments.Tests;
 
 [TestClass]
-public sealed class CospailSoapServiceTests
+public sealed class CospailServiceTests
 {
-    [TestClass]
-    public sealed class GetDebtAsyncTests
-    {
-        [TestMethod]
-        public async Task GetDebtAsync_WhenFixedCodeIsValid_ReturnsClientResponse()
-        {
-            var client = new Mock<ICospailSoapClient>();
-            var expected = new CospailDebtResponseDto { FixedCode = 123, Amount = 50m };
-            client.Setup(x => x.GetDebtByFixedCodeAsync(123, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(expected);
-            var service = CreateService(client);
-
-            var result = await service.GetDebtAsync(123);
-
-            result.Should().BeSameAs(expected);
-        }
-
-        [TestMethod]
-        public async Task GetDebtAsync_WhenFixedCodeIsNotPositive_Throws()
-        {
-            var service = CreateService(new Mock<ICospailSoapClient>());
-
-            var act = () => service.GetDebtAsync(0);
-
-            await act.Should().ThrowAsync<ArgumentException>().WithMessage("*mayor a cero*");
-        }
-    }
-
     [TestClass]
     public sealed class GetMemberDebtByDocumentAsyncTests
     {
@@ -440,7 +412,7 @@ public sealed class CospailSoapServiceTests
         }
     }
 
-    private static CospailSoapService CreateService(
+    private static CospailService CreateService(
         Mock<ICospailSoapClient> client,
         PaymentsDbContext? db = null
     ) =>
@@ -468,3 +440,4 @@ public sealed class CospailSoapServiceTests
         Amount = 100.00m
     };
 }
+
