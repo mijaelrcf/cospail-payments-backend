@@ -79,7 +79,9 @@ var app = builder.Build();
 // Middleware global de errores
 app.UseMiddleware<GlobalExceptionHandler>();
 
-if (app.Environment.IsDevelopment())
+var enableSwagger = app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:Enabled");
+
+if (enableSwagger)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
