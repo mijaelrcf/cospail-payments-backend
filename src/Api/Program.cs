@@ -2,6 +2,7 @@ using Api.Middleware;
 using Application.DependencyInjection;
 using Infrastructure.DependencyInjection;
 using Infrastructure.Persistence;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.OpenApi;
 using Serilog;
 
@@ -83,6 +84,16 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// Confiar en los encabezados X-Forwarded-* del proxy (Render termina TLS y envía HTTP interno).
+// Sin esto, UseHttpsRedirection detrás de un proxy externo causa bucles de redirección.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+};
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 app.UseHttpsRedirection();
 
