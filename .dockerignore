@@ -1,0 +1,11 @@
+.git
+.gitattributes
+.gitignore
+.vs
+.agents
+TestResults
+tests
+logs
+**/bin
+**/obj
+**/TestResults
