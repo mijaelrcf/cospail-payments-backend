@@ -19,6 +19,6 @@ public interface IBancoEconomicoQrClient
     /// </summary>
     Task<GenerateQrResponseDto> GenerateQrAsync(
         string bearerToken,
-        GenerateQrRequestDto request,
+        GenerateQrBankRequestDto request,
         CancellationToken cancellationToken = default);
 }

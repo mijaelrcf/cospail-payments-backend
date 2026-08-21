@@ -152,10 +152,8 @@ public sealed class ControllersTests
             var controller = new BancoEconomicoController(_service.Object);
             var request = new GenerateQrRequestDto
             {
-                TransactionId = "tx-001",
-                Currency = "BOB",
-                Amount = 35.50m,
-                DueDate = "2026-07-31"
+                PagoCospailId = Guid.NewGuid(),
+                BranchCode = "001"
             };
             var expected = new GenerateQrResponseDto { QrId = "qr-001", ResponseCode = 0 };
             _service.Setup(x => x.GenerateQrAsync(request, It.IsAny<CancellationToken>()))

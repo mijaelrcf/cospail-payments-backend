@@ -101,7 +101,7 @@ public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
     /// </summary>
     public async Task<GenerateQrResponseDto> GenerateQrAsync(
         string bearerToken,
-        GenerateQrRequestDto request,
+        GenerateQrBankRequestDto request,
         CancellationToken cancellationToken = default
     )
     {

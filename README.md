@@ -55,18 +55,19 @@ El frontend siempre consume primero **initiate** y después **generate-qr**:
    ```
 
    Respuesta: `{"pagoCospailId": "…", "totalAmount": 150.00, "status": "Pendiente", "debts": […]}`.
-3. **`POST /api/BancoEconomico/generate-qr`** — se envía el `pagoCospailId` en lugar del importe (el total se calcula del pago):
+3. **`POST /api/BancoEconomico/generate-qr`** — solo recibe el `pagoCospailId` (obtenido en el paso anterior) y opcionalmente `branchCode`; el resto de los datos del cobro se resuelven en la API:
 
    ```json
    {
-     "transactionId": "tx-abc-123",
      "pagoCospailId": "…",
-     "currency": "BOB",
-     "dueDate": "2026-08-31",
-     "description": "Pago de deudas Cospail",
      "branchCode": "001"
    }
    ```
+
+   La API calcula el importe total del pago, fija `currency: "BOB"`, genera el
+   `transactionId`, define `dueDate` según `ExternalServices:BanEcoApi:QrValidityHours`
+   (0 = vence hoy, hora Bolivia; 24 = mañana; configurable), arma la descripción con los
+   números de crédito de las deudas y envía `singleUse: true` y `modifyAmount: false`.
 
    Respuesta: el QR emitido por Banco Económico (`qrId` y `qrImage`).
 4. El usuario paga el QR; Banco Económico llama al **callback** `POST /api/qrsimple/notifyPaymentQR`:
@@ -96,7 +97,7 @@ El frontend siempre consume primero **initiate** y después **generate-qr**:
    y la notificación (importe, moneda, fecha/hora de pago y datos del ordenante) se persiste
    en `notificaciones_pago_qr`. El resultado se puede verificar con **`GET /api/Cospail/payments/{pagoCospailId}`** hasta que el pago llegue a `CospailRegistrado`. Con `responseCode: 1` los datos son inválidos o no coinciden con el QR; con `responseCode: 99`, un error interno.
 
-> Sin `pagoCospailId`, `generate-qr` sigue generando un QR independiente con el `amount` y `currency` proporcionados, sin asociar deudas.
+> `generate-qr` siempre requiere un `pagoCospailId` válido: el QR se genera únicamente a partir de un pago iniciado con **initiate**.
 
 ## Requisitos
 
@@ -120,6 +121,7 @@ $env:ExternalServices__BanEcoApi__BaseUrl = 'https://apimktdesa.baneco.com.bo/Ap
 $env:ExternalServices__BanEcoApi__UserName = 'USUARIO_BANECO'
 $env:ExternalServices__BanEcoApi__EncryptedPassword = 'PASSWORD_CIFRADO_ENTREGADO_POR_BANECO'
 $env:ExternalServices__BanEcoApi__AccountCredit = 'CUENTA_CIFRADA_O_CONFIGURADA_POR_BANECO'
+$env:ExternalServices__BanEcoApi__QrValidityHours = '0'
 $env:ConnectionStrings__PaymentsDatabase = 'Host=localhost;Port=5432;Database=cospail_payments;Username=postgres;Password=TU_PASSWORD'
 ```
 
@@ -178,7 +180,7 @@ En el entorno `Development`, Swagger queda disponible en `/swagger`. Si prefiere
 | GET | `/api/Cospail/member-debt-by-document` | Consulta deudas y estado del socio por código fijo y CI/NIT. |
 | POST | `/api/Cospail/payments/initiate` | Valida y persiste un pago agrupado de una o más deudas. |
 | GET | `/api/Cospail/payments/{pagoCospailId}` | Consulta el estado de un pago agrupado y sus deudas. |
-| POST | `/api/BancoEconomico/generate-qr` | Genera un QR de cobro (con `pagoCospailId` suma el total de las deudas). |
+| POST | `/api/BancoEconomico/generate-qr` | Genera el QR de cobro de un pago (`pagoCospailId` + `branchCode`); importe, moneda, vencimiento y transacción se resuelven en la API. |
 | POST | `/api/Cospail/payments/confirm` | Valida y registra un cobro individual en COSPAIL. |
 | POST | `/api/qrsimple/notifyPaymentQR` | Callback de pago de Banco Económico. Marca el pago `Pagado` y registra los cobros en COSPAIL. |
 | GET | `/health` | Health check (incluye conectividad con la base de datos). |

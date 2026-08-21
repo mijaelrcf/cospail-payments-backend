@@ -81,27 +81,35 @@ coincidan con la información vigente de COSPAIL.
 
 ### SPEC-004 — Generar un QR de cobro
 
-**Objetivo.** Crear un QR de Banco Económico para un importe, moneda y fecha de
-vencimiento indicados por el consumidor.
+**Objetivo.** Crear un QR de Banco Económico para cobrar un pago de deudas de
+Cospail previamente iniciado con `payments/initiate`.
 
-**Contrato.** `POST /api/BancoEconomico/generate-qr`.
+**Contrato.** `POST /api/BancoEconomico/generate-qr` con `pagoCospailId`
+(obligatorio) y `branchCode` (opcional, máx. 5 caracteres).
 
 **Reglas y criterios de aceptación.**
 
+- El QR solo se genera a partir de un pago existente en estado `Pendiente`;
+  un `pagoCospailId` inexistente o un pago que ya tiene QR devuelven `400`.
+- El importe del QR es el total calculado del pago; la moneda siempre es `BOB`.
+- `transactionId` lo genera la API (GUID); no lo envía el consumidor.
+- `dueDate` se resuelve en el servidor según
+  `ExternalServices:BanEcoApi:QrValidityHours`: 0 significa que vence hoy
+  (hora Bolivia), 24 al día siguiente, etc.
+- La descripción se construye con los números de crédito de las deudas del pago.
+- El QR se emite con `singleUse: true` y `modifyAmount: false`; el consumidor
+  no puede alterarlos.
 - Antes de solicitar el QR, el sistema se autentica ante Banco Económico.
 - El token obtenido se utiliza como cabecera `Authorization: Bearer` para
   `POST api/qrsimple/generateQR`.
-- La cuenta de abono enviada por el consumidor se reemplaza siempre por
-  `ExternalServices:BanEcoApi:AccountCredit`; por tanto, el consumidor no puede
-  elegir la cuenta destino.
-- `transactionId` es obligatorio (máx. 100 caracteres) y `description` tiene un
-  límite de 500 caracteres; exceder esos límites devuelve `400`.
-- Un `transactionId` ya registrado devuelve `400`, incluso cuando una petición
-  concurrente intenta registrar el mismo identificador.
+- La cuenta de abono se toma siempre de
+  `ExternalServices:BanEcoApi:AccountCredit`; el consumidor no puede elegir la
+  cuenta destino.
 - Si el banco responde HTTP exitoso y `responseCode: 0`, se devuelve el QR,
   incluyendo `qrId` y, cuando el banco lo entregue, `qrImage`.
 - Tras una emisión exitosa, se registra el QR con estado `Pendiente`, fecha y
-  hora UTC de creación, e identificadores únicos `transactionId` y `qrId`.
+  hora UTC de creación, e identificadores únicos `transactionId` y `qrId`, y el
+  pago pasa a `QRGenerado` asociado al QR emitido.
 - Errores HTTP, errores de deserialización y códigos funcionales distintos de
   cero se devuelven como `500`.
 

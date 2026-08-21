@@ -42,6 +42,8 @@ public static class DependencyInjection
             configuration.GetSection(BancoEconomicoOptions.SectionName)
         );
 
+        services.AddSingleton<IBancoEconomicoQrSettings, BancoEconomicoQrSettings>();
+
         services.AddHttpClient<ICospailSoapClient, CospailSoapClient>(
             (serviceProvider, client) =>
             {

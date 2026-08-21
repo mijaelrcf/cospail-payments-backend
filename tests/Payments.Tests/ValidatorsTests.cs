@@ -19,10 +19,7 @@ public sealed class ValidatorsTests
         {
             var request = new GenerateQrRequestDto
             {
-                TransactionId = "tx-001",
-                Currency = "BOB",
-                Amount = 35.50m,
-                DueDate = "2026-07-31",
+                PagoCospailId = Guid.NewGuid(),
                 BranchCode = "001"
             };
 
@@ -32,71 +29,17 @@ public sealed class ValidatorsTests
         }
 
         [TestMethod]
-        public void Validate_WhenTransactionIdMissing_ReturnsError()
+        public void Validate_WhenPagoCospailIdIsEmpty_ReturnsError()
         {
             var request = new GenerateQrRequestDto
             {
-                TransactionId = "",
-                Currency = "BOB",
-                Amount = 35.50m,
-                DueDate = "2026-07-31"
+                PagoCospailId = Guid.Empty
             };
 
             var result = _validator.Validate(request);
 
             result.IsValid.Should().BeFalse();
-            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.TransactionId));
-        }
-
-        [TestMethod]
-        public void Validate_WhenAmountNotPositive_ReturnsError()
-        {
-            var request = new GenerateQrRequestDto
-            {
-                TransactionId = "tx-001",
-                Currency = "BOB",
-                Amount = 0,
-                DueDate = "2026-07-31"
-            };
-
-            var result = _validator.Validate(request);
-
-            result.IsValid.Should().BeFalse();
-            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.Amount));
-        }
-
-        [TestMethod]
-        public void Validate_WhenDueDateHasInvalidFormat_ReturnsError()
-        {
-            var request = new GenerateQrRequestDto
-            {
-                TransactionId = "tx-001",
-                Currency = "BOB",
-                Amount = 35.50m,
-                DueDate = "31/07/2026"
-            };
-
-            var result = _validator.Validate(request);
-
-            result.IsValid.Should().BeFalse();
-            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.DueDate));
-        }
-
-        [TestMethod]
-        public void Validate_WhenCurrencyIsNotSupported_ReturnsError()
-        {
-            var request = new GenerateQrRequestDto
-            {
-                TransactionId = "tx-001",
-                Currency = "EUR",
-                Amount = 35.50m,
-                DueDate = "2026-07-31"
-            };
-
-            var result = _validator.Validate(request);
-
-            result.IsValid.Should().BeFalse();
-            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.Currency));
+            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.PagoCospailId));
         }
 
         [TestMethod]
@@ -104,10 +47,7 @@ public sealed class ValidatorsTests
         {
             var request = new GenerateQrRequestDto
             {
-                TransactionId = "tx-001",
-                Currency = "BOB",
-                Amount = 35.50m,
-                DueDate = "2026-07-31",
+                PagoCospailId = Guid.NewGuid(),
                 BranchCode = "123456"
             };
 
@@ -115,41 +55,6 @@ public sealed class ValidatorsTests
 
             result.IsValid.Should().BeFalse();
             result.Errors.Should().Contain(x => x.PropertyName == nameof(request.BranchCode));
-        }
-
-        [TestMethod]
-        public void Validate_WhenTransactionIdExceedsMaxLength_ReturnsError()
-        {
-            var request = new GenerateQrRequestDto
-            {
-                TransactionId = new string('x', 101),
-                Currency = "BOB",
-                Amount = 35.50m,
-                DueDate = "2026-07-31"
-            };
-
-            var result = _validator.Validate(request);
-
-            result.IsValid.Should().BeFalse();
-            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.TransactionId));
-        }
-
-        [TestMethod]
-        public void Validate_WhenDescriptionExceedsMaxLength_ReturnsError()
-        {
-            var request = new GenerateQrRequestDto
-            {
-                TransactionId = "tx-001",
-                Currency = "BOB",
-                Amount = 35.50m,
-                DueDate = "2026-07-31",
-                Description = new string('x', 501)
-            };
-
-            var result = _validator.Validate(request);
-
-            result.IsValid.Should().BeFalse();
-            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.Description));
         }
     }
 

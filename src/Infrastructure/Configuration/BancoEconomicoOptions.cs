@@ -28,4 +28,9 @@ public sealed class BancoEconomicoOptions
     /// </summary>
     public string AccountCredit { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Horas de vigencia del QR generado a partir de ahora.
+    /// 0 = vence hoy (hora Bolivia), 24 = vence mañana, 48 = en dos días, etc.
+    /// </summary>
+    public int QrValidityHours { get; set; }
 }

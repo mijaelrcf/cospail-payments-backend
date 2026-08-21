@@ -20,6 +20,7 @@ public sealed class BancoEconomicoService(
     IValidator<GenerateQrRequestDto> generateQrValidator,
     IValidator<NotifyPaymentQrRequestDto> notifyPaymentValidator,
     ICospailService cospailService,
+    IBancoEconomicoQrSettings qrSettings,
     ILogger<BancoEconomicoService> logger
 ) : IBancoEconomicoService
 {
@@ -31,40 +32,30 @@ public sealed class BancoEconomicoService(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        request.TransactionId = request.TransactionId.Trim();
-        request.Currency = request.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
-
         await generateQrValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        PagoCospail? pagoCospail = null;
-        if (request.PagoCospailId is Guid pagoCospailId)
+        var pagoCospail = await dbContext
+            .PagosCospail.Include(x => x.Deudas)
+            .SingleOrDefaultAsync(x => x.Id == request.PagoCospailId, cancellationToken);
+
+        if (pagoCospail is null)
         {
-            pagoCospail = await dbContext.PagosCospail.SingleOrDefaultAsync(
-                x => x.Id == pagoCospailId,
-                cancellationToken
-            );
-
-            if (pagoCospail is null)
-            {
-                throw new ArgumentException("pagoCospailId no existe.");
-            }
-
-            if (pagoCospail.Status != PagoCospailStatus.Pendiente)
-            {
-                throw new ArgumentException("El pago ya tiene un QR asociado.");
-            }
-
-            request.Amount = pagoCospail.TotalAmount;
+            throw new ArgumentException("pagoCospailId no existe.");
         }
 
-        if (await dbContext.PagosQr.SingleOrDefaultAsync(x => x.TransactionId == request.TransactionId, cancellationToken) is not null)
+        if (pagoCospail.Status != PagoCospailStatus.Pendiente)
         {
-            throw new ArgumentException("Ya existe un QR registrado para el transactionId proporcionado.");
+            throw new ArgumentException("El pago ya tiene un QR asociado.");
         }
+
+        var bankRequest = BuildBankRequest(pagoCospail, request.BranchCode);
 
         logger.LogInformation(
-            "Solicitando generación de QR. TransactionId: {TransactionId}",
-            request.TransactionId
+            "Solicitando generación de QR. TransactionId: {TransactionId}, PagoCospailId: {PagoCospailId}, Amount: {Amount}, Currency: {Currency}",
+            bankRequest.TransactionId,
+            pagoCospail.Id,
+            bankRequest.Amount,
+            bankRequest.Currency
         );
 
         var auth = await bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
@@ -78,7 +69,7 @@ public sealed class BancoEconomicoService(
 
         var response = await bancoEconomicoQrClient.GenerateQrAsync(
             auth.Token,
-            request,
+            bankRequest,
             cancellationToken
         );
 
@@ -88,15 +79,15 @@ public sealed class BancoEconomicoService(
         }
 
         var pagoQr = new PagoQr(
-            request.TransactionId.Trim(),
+            bankRequest.TransactionId,
             response.QrId.Trim(),
-            request.Amount,
-            request.Currency,
-            DateOnly.Parse(request.DueDate),
-            request.SingleUse,
-            request.ModifyAmount,
-            request.Description?.Trim(),
-            request.BranchCode?.Trim(),
+            bankRequest.Amount,
+            bankRequest.Currency,
+            DateOnly.ParseExact(bankRequest.DueDate, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            bankRequest.SingleUse,
+            bankRequest.ModifyAmount,
+            bankRequest.Description?.Trim(),
+            bankRequest.BranchCode?.Trim(),
             DateTime.UtcNow
         );
 
@@ -118,6 +109,31 @@ public sealed class BancoEconomicoService(
 
         return response;
     }
+
+    /// <summary>
+    /// Construye el payload para Banco Económico a partir del pago de Cospail.
+    /// El importe, la moneda, la transacción y el vencimiento se resuelven en el servidor.
+    /// </summary>
+    private GenerateQrBankRequestDto BuildBankRequest(PagoCospail pagoCospail, string? branchCode)
+    {
+        var expiresAtUtc = DateTime.UtcNow.AddHours(qrSettings.QrValidityHours);
+        var dueDate = DateOnly.FromDateTime(BoliviaTime.FromUtc(expiresAtUtc));
+
+        return new GenerateQrBankRequestDto
+        {
+            TransactionId = Guid.NewGuid().ToString("N"),
+            Currency = "BOB",
+            Amount = pagoCospail.TotalAmount,
+            Description = BuildDescription(pagoCospail),
+            DueDate = dueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            SingleUse = true,
+            ModifyAmount = false,
+            BranchCode = branchCode?.Trim()
+        };
+    }
+
+    private static string BuildDescription(PagoCospail pagoCospail) =>
+        string.Join(",", pagoCospail.Deudas.Select(x => x.CreditNumber).Distinct());
 
     /// <inheritdoc />
     public async Task<NotifyPaymentQrResponseDto> HandlePaymentNotificationAsync(
