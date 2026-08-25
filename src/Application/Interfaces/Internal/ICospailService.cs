@@ -1,5 +1,6 @@
 ﻿using Application.DTOs.Cospail.Requests;
 using Application.DTOs.Cospail.Responses;
+using Domain.Entities;
 
 namespace Application.Interfaces.Internal;
 
@@ -53,6 +54,16 @@ public interface ICospailService
         int creditNumber,
         int type,
         decimal amount,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// Devuelve los últimos 5 pagos de Cospail del socio con sus deudas,
+    /// filtrados por código fijo y estado.
+    /// </summary>
+    Task<List<RecentPaymentItemDto>> GetRecentPaymentsAsync(
+        int fixedCode,
+        PagoCospailStatus status = PagoCospailStatus.CospailRegistrado,
         CancellationToken cancellationToken = default
     );
 }

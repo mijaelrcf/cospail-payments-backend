@@ -1,6 +1,7 @@
 ﻿using Application.DTOs.Cospail.Requests;
 using Application.DTOs.Cospail.Responses;
 using Application.Interfaces.Internal;
+using Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
@@ -135,6 +136,34 @@ public class CospailController : ControllerBase
         {
             return NotFound();
         }
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Devuelve los últimos 5 pagos de Cospail del socio.
+    /// </summary>
+    /// <param name="fixedCode">Código fijo del socio.</param>
+    /// <param name="status">Estado del pago (predeterminado: CospailRegistrado).</param>
+    /// <param name="cancellationToken">Token de cancelación.</param>
+    [HttpGet("payments/recent")]
+    [ProducesResponseType(typeof(List<RecentPaymentItemDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetRecentPayments(
+        [FromQuery] int fixedCode,
+        [FromQuery] PagoCospailStatus status = PagoCospailStatus.CospailRegistrado,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (fixedCode <= 0)
+        {
+            return BadRequest("fixedCode debe ser mayor a cero.");
+        }
+
+        var result = await _cospailService.GetRecentPaymentsAsync(
+            fixedCode,
+            status,
+            cancellationToken
+        );
 
         return Ok(result);
     }

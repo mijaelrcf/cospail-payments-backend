@@ -301,6 +301,40 @@ public sealed class CospailService(
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<List<RecentPaymentItemDto>> GetRecentPaymentsAsync(
+        int fixedCode,
+        PagoCospailStatus status = PagoCospailStatus.CospailRegistrado,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (fixedCode <= 0)
+        {
+            throw new ArgumentException("El código fijo debe ser mayor a cero.");
+        }
+
+        var pagos = await dbContext
+            .PagosCospail
+            .Include(x => x.Deudas)
+            .Where(x => x.FixedCode == fixedCode && x.Status == status)
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .Take(5)
+            .ToListAsync(cancellationToken);
+
+        return pagos
+            .Select(x => new RecentPaymentItemDto
+            {
+                PagoCospailId = x.Id,
+                TotalAmount = x.TotalAmount,
+                Debts = x.Deudas.Select(d => new PaymentDebtDetailDto
+                {
+                    CreditNumber = d.CreditNumber,
+                    Period = d.Period,
+                    Amount = d.Amount
+                }).ToList()
+            })
+            .ToList();
+    }
+
     private static PagoCospailResponseDto ToResponse(PagoCospail pagoCospail) =>
         new()
         {
