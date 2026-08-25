@@ -12,6 +12,11 @@ internal static class BoliviaTime
     /// </summary>
     internal static DateTime FromUtc(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(utc, TimeZone);
 
+    /// <summary>
+    /// Fecha actual en Bolivia.
+    /// </summary>
+    internal static DateOnly Today() => DateOnly.FromDateTime(FromUtc(DateTime.UtcNow));
+
     private static TimeZoneInfo GetBoliviaTimeZone()
     {
         try

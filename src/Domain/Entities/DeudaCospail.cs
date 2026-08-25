@@ -139,4 +139,20 @@ public sealed class DeudaCospail
         Status = DeudaCospailStatus.CospailRegistrado;
         return true;
     }
+
+    /// <summary>
+    /// Marca la deuda como anulado junto con el pago cuyo QR fue anulado.
+    /// Solo es válido para deudas pendientes; la deuda sigue debiéndose en Cospail.
+    /// </summary>
+    /// <returns><see langword="true"/> si se produjo la transición de estado.</returns>
+    public bool MarkAsAnulado()
+    {
+        if (Status != DeudaCospailStatus.Pendiente)
+        {
+            return false;
+        }
+
+        Status = DeudaCospailStatus.Anulado;
+        return true;
+    }
 }

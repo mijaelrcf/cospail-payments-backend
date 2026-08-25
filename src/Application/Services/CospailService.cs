@@ -141,6 +141,13 @@ public sealed class CospailService(
 
         await initiatePaymentValidator.ValidateAndThrowAsync(request, cancellationToken);
 
+        if (await FindActiveQrAsync(request.FixedCode, request.DocumentId, cancellationToken) is not null)
+        {
+            throw new ArgumentException(
+                "El socio ya tiene un QR pendiente de pago. Debe pagarlo o anularlo antes de iniciar otro pago."
+            );
+        }
+
         var debtResponse = await cospailSoapClient.GetMemberDebtByDocumentAsync(
             request.FixedCode,
             request.DocumentId,
@@ -235,6 +242,63 @@ public sealed class CospailService(
         }
 
         return ToResponse(pagoCospail);
+    }
+
+    public async Task<ActiveQrResponseDto?> GetActiveQrAsync(
+        int fixedCode,
+        string documentId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (fixedCode <= 0)
+        {
+            throw new ArgumentException("El código fijo debe ser mayor a cero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(documentId))
+        {
+            throw new ArgumentException("El documento de identidad es requerido.");
+        }
+
+        var pagoCospail = await FindActiveQrAsync(fixedCode, documentId.Trim(), cancellationToken);
+
+        if (pagoCospail?.Qr is null)
+        {
+            return null;
+        }
+
+        return new ActiveQrResponseDto
+        {
+            PagoCospailId = pagoCospail.Id,
+            QrId = pagoCospail.Qr.QrId,
+            QrImage = pagoCospail.Qr.QrImage,
+            Amount = pagoCospail.Qr.Amount,
+            Currency = pagoCospail.Qr.Currency,
+            DueDate = pagoCospail.Qr.DueDate,
+            Status = pagoCospail.Qr.Status,
+            CreatedAtUtc = pagoCospail.Qr.CreatedAtUtc
+        };
+    }
+
+    private async Task<PagoCospail?> FindActiveQrAsync(
+        int fixedCode,
+        string documentId,
+        CancellationToken cancellationToken
+    )
+    {
+        var today = BoliviaTime.Today();
+
+        return await dbContext
+            .PagosCospail.Include(x => x.Qr)
+            .Where(x =>
+                x.FixedCode == fixedCode
+                && x.DocumentId == documentId
+                && x.Qr != null
+                && x.Qr.Status == PagoQrStatus.Pendiente
+                && x.Qr.DueDate >= today
+            )
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private static PagoCospailResponseDto ToResponse(PagoCospail pagoCospail) =>

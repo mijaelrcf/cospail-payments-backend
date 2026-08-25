@@ -19,6 +19,7 @@ public sealed class BancoEconomicoService(
     IPaymentsDbContext dbContext,
     IValidator<GenerateQrRequestDto> generateQrValidator,
     IValidator<NotifyPaymentQrRequestDto> notifyPaymentValidator,
+    IValidator<AnnulQrRequestDto> annulQrValidator,
     ICospailService cospailService,
     IBancoEconomicoQrSettings qrSettings,
     ILogger<BancoEconomicoService> logger
@@ -45,7 +46,18 @@ public sealed class BancoEconomicoService(
 
         if (pagoCospail.Status != PagoCospailStatus.Pendiente)
         {
-            throw new ArgumentException("El pago ya tiene un QR asociado.");
+            throw new ArgumentException(
+                pagoCospail.Status == PagoCospailStatus.Anulado
+                    ? "El pago fue anulado. Inicie un nuevo pago."
+                    : "El pago ya tiene un QR asociado."
+            );
+        }
+
+        if (await MemberHasActiveQrAsync(pagoCospail, cancellationToken))
+        {
+            throw new ArgumentException(
+                "El socio ya tiene un QR pendiente de pago. Debe pagarlo o anularlo antes de generar otro."
+            );
         }
 
         var bankRequest = BuildBankRequest(pagoCospail, request.BranchCode);
@@ -88,6 +100,7 @@ public sealed class BancoEconomicoService(
             bankRequest.ModifyAmount,
             bankRequest.Description?.Trim(),
             bankRequest.BranchCode?.Trim(),
+            response.QrImage,
             DateTime.UtcNow
         );
 
@@ -134,6 +147,116 @@ public sealed class BancoEconomicoService(
 
     private static string BuildDescription(PagoCospail pagoCospail) =>
         string.Join(",", pagoCospail.Deudas.Select(x => x.CreditNumber).Distinct());
+
+    /// <inheritdoc />
+    public async Task<AnnulQrResponseDto> AnnulQrAsync(
+        AnnulQrRequestDto request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        await annulQrValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var pagoCospail = await dbContext
+            .PagosCospail.Include(x => x.Qr)
+            .Include(x => x.Deudas)
+            .SingleOrDefaultAsync(x => x.Id == request.PagoCospailId, cancellationToken);
+
+        if (pagoCospail is null)
+        {
+            throw new ArgumentException("pagoCospailId no existe.");
+        }
+
+        if (pagoCospail.Qr is null)
+        {
+            throw new ArgumentException("El pago no tiene un QR asociado.");
+        }
+
+        var qr = pagoCospail.Qr;
+
+        if (qr.Status == PagoQrStatus.Anulado)
+        {
+            return new AnnulQrResponseDto { ResponseCode = 0, Message = string.Empty };
+        }
+
+        if (qr.Status == PagoQrStatus.Pagado)
+        {
+            throw new ArgumentException("El QR ya fue pagado y no puede anularse.");
+        }
+
+        if (pagoCospail.Status != PagoCospailStatus.QRGenerado)
+        {
+            throw new InvalidOperationException("El pago no está en estado QR generado.");
+        }
+
+        logger.LogInformation(
+            "Solicitando anulación de QR. QrId: {QrId}, PagoCospailId: {PagoCospailId}",
+            qr.QrId,
+            pagoCospail.Id
+        );
+
+        var auth = await bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(auth.Token))
+        {
+            throw new InvalidOperationException(
+                "No se recibió token de autenticación desde Banco Económico."
+            );
+        }
+
+        var response = await bancoEconomicoQrClient.AnnulQrAsync(
+            auth.Token,
+            new AnnulQrBankRequestDto { QrId = qr.QrId },
+            cancellationToken
+        );
+
+        if (!qr.MarkAsAnnulled())
+        {
+            throw new InvalidOperationException("No se pudo anular el QR en su estado actual.");
+        }
+
+        if (!pagoCospail.MarkAsAnulado())
+        {
+            throw new InvalidOperationException("No se pudo anular el pago.");
+        }
+
+        foreach (var deuda in pagoCospail.Deudas)
+        {
+            if (!deuda.MarkAsAnulado())
+            {
+                logger.LogWarning(
+                    "No se anuló la deuda {CreditNumber} del pago {PagoCospailId} porque está en estado {Status}.",
+                    deuda.CreditNumber,
+                    pagoCospail.Id,
+                    deuda.Status
+                );
+            }
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return response;
+    }
+
+    private async Task<bool> MemberHasActiveQrAsync(
+        PagoCospail pagoCospail,
+        CancellationToken cancellationToken
+    )
+    {
+        var today = BoliviaTime.Today();
+
+        return await dbContext
+            .PagosCospail.Where(x =>
+                x.FixedCode == pagoCospail.FixedCode
+                && x.DocumentId == pagoCospail.DocumentId
+                && x.Id != pagoCospail.Id
+                && x.Qr != null
+                && x.Qr.Status == PagoQrStatus.Pendiente
+                && x.Qr.DueDate >= today
+            )
+            .AnyAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
     public async Task<NotifyPaymentQrResponseDto> HandlePaymentNotificationAsync(
@@ -218,7 +341,18 @@ public sealed class BancoEconomicoService(
 
         if (pagoCospail is not null)
         {
-            await RegisterDebtsInCospailAsync(pagoCospail, cancellationToken);
+            if (pagoCospail.Status == PagoCospailStatus.Anulado)
+            {
+                logger.LogWarning(
+                    "Se recibió notificación de pago para el QR {QrId} cuyo pago {PagoCospailId} está anulado. No se registrarán cobros.",
+                    pagoQr.QrId,
+                    pagoCospail.Id
+                );
+            }
+            else
+            {
+                await RegisterDebtsInCospailAsync(pagoCospail, cancellationToken);
+            }
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -235,7 +369,7 @@ public sealed class BancoEconomicoService(
         CancellationToken cancellationToken
     )
     {
-        if (pagoCospail.Status == PagoCospailStatus.CospailRegistrado)
+        if (pagoCospail.Status is PagoCospailStatus.CospailRegistrado or PagoCospailStatus.Anulado)
         {
             return false;
         }

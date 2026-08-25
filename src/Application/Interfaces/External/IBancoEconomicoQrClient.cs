@@ -21,4 +21,12 @@ public interface IBancoEconomicoQrClient
         string bearerToken,
         GenerateQrBankRequestDto request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Anula un código QR pendiente utilizando el token de acceso obtenido previamente.
+    /// </summary>
+    Task<AnnulQrResponseDto> AnnulQrAsync(
+        string bearerToken,
+        AnnulQrBankRequestDto request,
+        CancellationToken cancellationToken = default);
 }

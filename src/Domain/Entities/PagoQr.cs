@@ -56,6 +56,12 @@ public sealed class PagoQr
     public string? BranchCode { get; private set; }
 
     /// <summary>
+    /// Imagen del QR en base64 entregada por Banco Económico, cuando está disponible.
+    /// Se persiste para poder volver a mostrar el QR mientras permanece pendiente.
+    /// </summary>
+    public string? QrImage { get; private set; }
+
+    /// <summary>
     /// Fecha y hora UTC en que se registró la emisión del QR.
     /// </summary>
     public DateTime CreatedAtUtc { get; private set; }
@@ -87,6 +93,7 @@ public sealed class PagoQr
         bool modifyAmount,
         string? description,
         string? branchCode,
+        string? qrImage,
         DateTime createdAtUtc)
     {
         Id = Guid.NewGuid();
@@ -99,6 +106,7 @@ public sealed class PagoQr
         ModifyAmount = modifyAmount;
         Description = description;
         BranchCode = branchCode;
+        QrImage = qrImage;
         CreatedAtUtc = DateTime.SpecifyKind(createdAtUtc, DateTimeKind.Utc);
         Status = PagoQrStatus.Pendiente;
     }
@@ -117,6 +125,22 @@ public sealed class PagoQr
 
         Status = PagoQrStatus.Pagado;
         PaidAtUtc = DateTime.SpecifyKind(paidAtUtc, DateTimeKind.Utc);
+        return true;
+    }
+
+    /// <summary>
+    /// Marca el QR como anulado tras la confirmación de Banco Económico. Solo es
+    /// válido para QR pendientes; un QR pagado no puede anularse.
+    /// </summary>
+    /// <returns><see langword="true"/> si se produjo la transición de estado.</returns>
+    public bool MarkAsAnnulled()
+    {
+        if (Status != PagoQrStatus.Pendiente)
+        {
+            return false;
+        }
+
+        Status = PagoQrStatus.Anulado;
         return true;
     }
 }

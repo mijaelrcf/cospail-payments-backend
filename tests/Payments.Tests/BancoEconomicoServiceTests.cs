@@ -221,7 +221,7 @@ public sealed class BancoEconomicoServiceTests
     {
         await using var db = CreateInMemoryDb();
         db.PagosQr.Add(new PagoQr(
-            "tx-001", "qr-001", 35.50m, "BOB", new DateOnly(2026, 7, 31), true, true, "Pago", "001", DateTime.UtcNow));
+            "tx-001", "qr-001", 35.50m, "BOB", new DateOnly(2026, 7, 31), true, true, "Pago", "001", null, DateTime.UtcNow));
         await db.SaveChangesAsync();
         var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
         var notification = CreateNotification();
@@ -296,6 +296,157 @@ public sealed class BancoEconomicoServiceTests
     }
 
     [TestMethod]
+    public async Task GenerateQrAsync_WhenPagoCospailIsAnnulled_ThrowsWithClearMessage()
+    {
+        await using var db = CreateInMemoryDb();
+        var pagoCospail = await CreatePendingPaymentAsync(db);
+        pagoCospail.MarkAsQrGenerated(Guid.NewGuid());
+        pagoCospail.MarkAsAnulado();
+        await db.SaveChangesAsync();
+        var service = CreateService(CreateClient("qr-001"), db);
+        var request = CreateGenerateRequest(pagoCospail.Id);
+
+        var act = () => service.GenerateQrAsync(request);
+
+        await act.Should().ThrowAsync<ArgumentException>().WithMessage("*El pago fue anulado*");
+    }
+
+    [TestMethod]
+    public async Task GenerateQrAsync_PersistsQrImageFromBankResponse()
+    {
+        await using var db = CreateInMemoryDb();
+        var pagoCospail = await CreatePendingPaymentAsync(db);
+        var client = new Mock<IBancoEconomicoQrClient>();
+        client.Setup(x => x.AuthenticateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AuthenticateResponseDto { Token = "token", ResponseCode = 0 });
+        client.Setup(x => x.GenerateQrAsync("token", It.IsAny<GenerateQrBankRequestDto>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GenerateQrResponseDto { QrId = "qr-001", QrImage = "base64-image", ResponseCode = 0 });
+        var service = CreateService(client, db);
+
+        await service.GenerateQrAsync(CreateGenerateRequest(pagoCospail.Id));
+
+        var savedQr = await db.PagosQr.SingleAsync();
+        savedQr.QrImage.Should().Be("base64-image");
+    }
+
+    [TestMethod]
+    public async Task GenerateQrAsync_WhenMemberHasAnotherActiveQr_Throws()
+    {
+        await using var db = CreateInMemoryDb();
+        var pagoWithQr = await CreatePendingPaymentAsync(db);
+        var qr = CreateActiveQr();
+        db.PagosQr.Add(qr);
+        await db.SaveChangesAsync();
+        pagoWithQr.MarkAsQrGenerated(qr.Id);
+
+        var otherPago = new PagoCospail(123, "1234567", "Juan Perez", 50.00m, DateTime.UtcNow);
+        otherPago.AddDeuda(
+            new DeudaCospail(123, "1234567", "Juan Perez", 6, 1, 6, 2026, 7, "2026-07", 50.00m)
+        );
+        db.PagosCospail.Add(otherPago);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(CreateClient("qr-002"), db);
+
+        var act = () => service.GenerateQrAsync(CreateGenerateRequest(otherPago.Id));
+
+        await act.Should().ThrowAsync<ArgumentException>().WithMessage("*QR pendiente*");
+    }
+
+    [TestClass]
+    public sealed class AnnulQrAsyncTests
+    {
+        [TestMethod]
+        public async Task AnnulQrAsync_WhenBankSucceeds_MarksQrPaymentAndDebtsAnnulled()
+        {
+            await using var db = CreateInMemoryDb();
+            var pagoCospail = await CreatePendingPaymentAsync(db);
+            var qr = CreateActiveQr();
+            db.PagosQr.Add(qr);
+            await db.SaveChangesAsync();
+            pagoCospail.MarkAsQrGenerated(qr.Id);
+            await db.SaveChangesAsync();
+            var service = CreateService(CreateClient("qr-001"), db);
+
+            var response = await service.AnnulQrAsync(
+                new AnnulQrRequestDto { PagoCospailId = pagoCospail.Id });
+
+            response.ResponseCode.Should().Be(0);
+            qr.Status.Should().Be(PagoQrStatus.Anulado);
+
+            var updated = await db
+                .PagosCospail.Include(x => x.Deudas)
+                .SingleAsync(x => x.Id == pagoCospail.Id);
+            updated.Status.Should().Be(PagoCospailStatus.Anulado);
+            updated.Deudas.Should().OnlyContain(x => x.Status == DeudaCospailStatus.Anulado);
+        }
+
+        [TestMethod]
+        public async Task AnnulQrAsync_WhenAlreadyAnnulled_IsIdempotent()
+        {
+            await using var db = CreateInMemoryDb();
+            var pagoCospail = await CreatePendingPaymentAsync(db);
+            var qr = CreateActiveQr();
+            db.PagosQr.Add(qr);
+            await db.SaveChangesAsync();
+            pagoCospail.MarkAsQrGenerated(qr.Id);
+            await db.SaveChangesAsync();
+            var service = CreateService(CreateClient("qr-001"), db);
+            await service.AnnulQrAsync(new AnnulQrRequestDto { PagoCospailId = pagoCospail.Id });
+
+            var response = await service.AnnulQrAsync(
+                new AnnulQrRequestDto { PagoCospailId = pagoCospail.Id });
+
+            response.ResponseCode.Should().Be(0);
+            qr.Status.Should().Be(PagoQrStatus.Anulado);
+        }
+
+        [TestMethod]
+        public async Task AnnulQrAsync_WhenQrIsPaid_Throws()
+        {
+            await using var db = CreateInMemoryDb();
+            var pagoCospail = await CreatePendingPaymentAsync(db);
+            var qr = CreateActiveQr();
+            qr.MarkAsPaid(DateTime.UtcNow);
+            db.PagosQr.Add(qr);
+            await db.SaveChangesAsync();
+            pagoCospail.MarkAsQrGenerated(qr.Id);
+            await db.SaveChangesAsync();
+            var service = CreateService(CreateClient("qr-001"), db);
+
+            var act = () => service.AnnulQrAsync(
+                new AnnulQrRequestDto { PagoCospailId = pagoCospail.Id });
+
+            await act.Should().ThrowAsync<ArgumentException>().WithMessage("*pagado*");
+        }
+
+        [TestMethod]
+        public async Task AnnulQrAsync_WhenPagoCospailDoesNotExist_Throws()
+        {
+            await using var db = CreateInMemoryDb();
+            var service = CreateService(CreateClient("qr-001"), db);
+
+            var act = () => service.AnnulQrAsync(
+                new AnnulQrRequestDto { PagoCospailId = Guid.NewGuid() });
+
+            await act.Should().ThrowAsync<ArgumentException>().WithMessage("*pagoCospailId*");
+        }
+
+        [TestMethod]
+        public async Task AnnulQrAsync_WhenPagoHasNoQr_Throws()
+        {
+            await using var db = CreateInMemoryDb();
+            var pagoCospail = await CreatePendingPaymentAsync(db);
+            var service = CreateService(CreateClient("qr-001"), db);
+
+            var act = () => service.AnnulQrAsync(
+                new AnnulQrRequestDto { PagoCospailId = pagoCospail.Id });
+
+            await act.Should().ThrowAsync<ArgumentException>().WithMessage("*QR asociado*");
+        }
+    }
+
+    [TestMethod]
     public async Task HandlePaymentNotificationAsync_WhenQrLinkedToPayment_RegistersDebtsInCospail()
     {
         await using var db = CreateInMemoryDb();
@@ -321,6 +472,40 @@ public sealed class BancoEconomicoServiceTests
         cospailService.Verify(
             x => x.RecordDebtPaymentAsync(5, 1, 100.00m, It.IsAny<CancellationToken>()),
             Times.Once
+        );
+    }
+
+    [TestMethod]
+    public async Task HandlePaymentNotificationAsync_WhenPagoWasAnnulled_SkipsCospailRegistration()
+    {
+        await using var db = CreateInMemoryDb();
+        var pagoCospail = await CreatePendingPaymentAsync(db);
+        var qr = CreatePendingQr();
+        db.PagosQr.Add(qr);
+        await db.SaveChangesAsync();
+        pagoCospail.MarkAsQrGenerated(qr.Id);
+        qr.MarkAsAnnulled();
+        pagoCospail.MarkAsAnulado();
+        pagoCospail.Deudas.Single().MarkAsAnulado();
+        await db.SaveChangesAsync();
+        var cospailService = CreateCospailService(true);
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db, cospailService);
+
+        var response = await service.HandlePaymentNotificationAsync(CreateNotification());
+
+        response.ResponseCode.Should().Be(0);
+
+        var stored = await db
+            .PagosCospail.Include(x => x.Deudas)
+            .SingleAsync(x => x.Id == pagoCospail.Id);
+        stored.Status.Should().Be(PagoCospailStatus.Anulado);
+        stored.Deudas.Single().Status.Should().Be(DeudaCospailStatus.Anulado);
+
+        db.NotificacionesPagoQr.Should().HaveCount(1);
+
+        cospailService.Verify(
+            x => x.RecordDebtPaymentAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()),
+            Times.Never
         );
     }
 
@@ -386,6 +571,7 @@ public sealed class BancoEconomicoServiceTests
             db,
             new GenerateQrRequestDtoValidator(),
             new NotifyPaymentQrRequestDtoValidator(),
+            new AnnulQrRequestDtoValidator(),
             (cospailService ?? CreateCospailService()).Object,
             qrSettings ?? new FakeQrSettings(0),
             NullLogger<BancoEconomicoService>.Instance
@@ -433,6 +619,8 @@ public sealed class BancoEconomicoServiceTests
             .ReturnsAsync(new AuthenticateResponseDto { Token = "token", ResponseCode = 0 });
         client.Setup(x => x.GenerateQrAsync("token", It.IsAny<GenerateQrBankRequestDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GenerateQrResponseDto { QrId = qrId, ResponseCode = 0 });
+        client.Setup(x => x.AnnulQrAsync("token", It.IsAny<AnnulQrBankRequestDto>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AnnulQrResponseDto { ResponseCode = 0 });
         return client;
     }
 
@@ -455,7 +643,10 @@ public sealed class BancoEconomicoServiceTests
     }
 
     private static PagoQr CreatePendingQr() => new(
-        "tx-001", "qr-001", 35.50m, "BOB", new DateOnly(2026, 7, 31), true, false, "Pago", "001", DateTime.UtcNow);
+        "tx-001", "qr-001", 35.50m, "BOB", new DateOnly(2026, 7, 31), true, false, "Pago", "001", null, DateTime.UtcNow);
+
+    private static PagoQr CreateActiveQr() => new(
+        "tx-001", "qr-001", 100.00m, "BOB", ExpectedDueDate(0), true, false, "5", "001", null, DateTime.UtcNow);
 
     private static NotifyPaymentQrRequestDto CreateNotification(string transactionId = "tx-001") => new()
     {

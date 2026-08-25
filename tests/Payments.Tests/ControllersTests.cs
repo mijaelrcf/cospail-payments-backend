@@ -139,6 +139,46 @@ public sealed class ControllersTests
             var ok = result.Should().BeOfType<OkObjectResult>().Subject;
             ok.Value.Should().BeSameAs(expected);
         }
+
+        [TestMethod]
+        public async Task GetActiveQr_WhenServiceReturnsQr_ReturnsOkWithResult()
+        {
+            var controller = new CospailController(_service.Object);
+            var expected = new ActiveQrResponseDto { QrId = "qr-001" };
+            _service.Setup(x => x.GetActiveQrAsync(123, "1234567", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expected);
+
+            var result = await controller.GetActiveQr(123, "1234567", CancellationToken.None);
+
+            var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+            ok.Value.Should().BeSameAs(expected);
+        }
+
+        [TestMethod]
+        public async Task GetActiveQr_WhenMemberHasNoActiveQr_ReturnsNotFound()
+        {
+            var controller = new CospailController(_service.Object);
+            _service.Setup(x => x.GetActiveQrAsync(123, "1234567", It.IsAny<CancellationToken>()))
+                .ReturnsAsync((ActiveQrResponseDto?)null);
+
+            var result = await controller.GetActiveQr(123, "1234567", CancellationToken.None);
+
+            result.Should().BeOfType<NotFoundResult>();
+        }
+
+        [TestMethod]
+        public async Task GetActiveQr_WhenFixedCodeIsNotPositive_ReturnsBadRequest()
+        {
+            var controller = new CospailController(_service.Object);
+
+            var result = await controller.GetActiveQr(0, "1234567", CancellationToken.None);
+
+            result.Should().BeOfType<BadRequestObjectResult>();
+            _service.Verify(
+                x => x.GetActiveQrAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+                Times.Never
+            );
+        }
     }
 
     [TestClass]
@@ -160,6 +200,21 @@ public sealed class ControllersTests
                 .ReturnsAsync(expected);
 
             var result = await controller.GenerateQr(request, CancellationToken.None);
+
+            var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+            ok.Value.Should().BeSameAs(expected);
+        }
+
+        [TestMethod]
+        public async Task AnnulQr_WhenServiceSucceeds_ReturnsOkWithResult()
+        {
+            var controller = new BancoEconomicoController(_service.Object);
+            var request = new AnnulQrRequestDto { PagoCospailId = Guid.NewGuid() };
+            var expected = new AnnulQrResponseDto { ResponseCode = 0 };
+            _service.Setup(x => x.AnnulQrAsync(request, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expected);
+
+            var result = await controller.AnnulQr(request, CancellationToken.None);
 
             var ok = result.Should().BeOfType<OkObjectResult>().Subject;
             ok.Value.Should().BeSameAs(expected);

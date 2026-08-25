@@ -13,5 +13,10 @@ public enum PagoQrStatus
     /// <summary>
     /// Banco Económico notificó el pago del QR.
     /// </summary>
-    Pagado = 1
+    Pagado = 1,
+
+    /// <summary>
+    /// El QR fue anulado ante Banco Económico y ya no puede pagarse.
+    /// </summary>
+    Anulado = 2
 }

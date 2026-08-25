@@ -336,6 +336,48 @@ public sealed class CospailServiceTests
             result.TotalAmount.Should().Be(60m);
         }
 
+        [TestMethod]
+        public async Task InitiatePaymentAsync_WhenMemberHasActiveQr_Throws()
+        {
+            await using var db = CreateInMemoryDb();
+            await CreatePaymentWithActiveQrAsync(db);
+            var service = CreateService(
+                CreateClientWithDebts(CreateDebt(5, 100.00m)),
+                db
+            );
+
+            var act = () => service.InitiatePaymentAsync(CreateRequest());
+
+            await act.Should().ThrowAsync<ArgumentException>().WithMessage("*QR pendiente*");
+        }
+
+        [TestMethod]
+        public async Task InitiatePaymentAsync_AfterQrAnnul_AllowsNewPaymentWithSameDebts()
+        {
+            await using var db = CreateInMemoryDb();
+            var annulledPago = await CreatePaymentWithActiveQrAsync(db);
+            annulledPago.Qr!.MarkAsAnnulled();
+            annulledPago.MarkAsAnulado();
+            annulledPago.Deudas.Single().MarkAsAnulado();
+            await db.SaveChangesAsync();
+            var service = CreateService(
+                CreateClientWithDebts(CreateDebt(5, 100.00m)),
+                db
+            );
+
+            var result = await service.InitiatePaymentAsync(CreateRequest());
+
+            result.PagoCospailId.Should().NotBe(annulledPago.Id);
+            result.Status.Should().Be(PagoCospailStatus.Pendiente);
+
+            db.PagosCospail.Should().HaveCount(2);
+            var original = await db
+                .PagosCospail.Include(x => x.Deudas)
+                .SingleAsync(x => x.Id == annulledPago.Id);
+            original.Status.Should().Be(PagoCospailStatus.Anulado);
+            original.Deudas.Single().Status.Should().Be(DeudaCospailStatus.Anulado);
+        }
+
         private static InitiatePaymentRequestDto CreateRequest() => new()
         {
             FixedCode = 123,
@@ -412,6 +454,65 @@ public sealed class CospailServiceTests
         }
     }
 
+    [TestClass]
+    public sealed class GetActiveQrAsyncTests
+    {
+        [TestMethod]
+        public async Task GetActiveQrAsync_WhenMemberHasPendingQr_ReturnsIt()
+        {
+            await using var db = CreateInMemoryDb();
+            var pagoCospail = await CreatePaymentWithActiveQrAsync(db);
+            var service = CreateService(new Mock<ICospailSoapClient>(), db);
+
+            var result = await service.GetActiveQrAsync(123, "1234567");
+
+            result.Should().NotBeNull();
+            result!.PagoCospailId.Should().Be(pagoCospail.Id);
+            result.QrId.Should().Be("qr-001");
+            result.Amount.Should().Be(100.00m);
+            result.Currency.Should().Be("BOB");
+            result.Status.Should().Be(PagoQrStatus.Pendiente);
+            result.DueDate.Should().Be(DateOnly.FromDateTime(DateTime.UtcNow));
+        }
+
+        [TestMethod]
+        public async Task GetActiveQrAsync_WhenMemberHasNoQr_ReturnsNull()
+        {
+            await using var db = CreateInMemoryDb();
+            var service = CreateService(new Mock<ICospailSoapClient>(), db);
+
+            var result = await service.GetActiveQrAsync(123, "1234567");
+
+            result.Should().BeNull();
+        }
+
+        [TestMethod]
+        public async Task GetActiveQrAsync_WhenQrIsOverdue_ReturnsNull()
+        {
+            await using var db = CreateInMemoryDb();
+            await CreatePaymentWithActiveQrAsync(db, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1));
+            var service = CreateService(new Mock<ICospailSoapClient>(), db);
+
+            var result = await service.GetActiveQrAsync(123, "1234567");
+
+            result.Should().BeNull();
+        }
+
+        [TestMethod]
+        public async Task GetActiveQrAsync_WhenQrIsAnnulled_ReturnsNull()
+        {
+            await using var db = CreateInMemoryDb();
+            var pagoCospail = await CreatePaymentWithActiveQrAsync(db);
+            pagoCospail.Qr!.MarkAsAnnulled();
+            await db.SaveChangesAsync();
+            var service = CreateService(new Mock<ICospailSoapClient>(), db);
+
+            var result = await service.GetActiveQrAsync(123, "1234567");
+
+            result.Should().BeNull();
+        }
+    }
+
     private static CospailService CreateService(
         Mock<ICospailSoapClient> client,
         PaymentsDbContext? db = null
@@ -422,6 +523,27 @@ public sealed class CospailServiceTests
             new ConfirmPaymentRequestDtoValidator(),
             new InitiatePaymentRequestDtoValidator()
         );
+
+    private static async Task<PagoCospail> CreatePaymentWithActiveQrAsync(
+        PaymentsDbContext db,
+        DateOnly? dueDate = null
+    )
+    {
+        var pagoCospail = new PagoCospail(123, "1234567", "Juan Perez", 100.00m, DateTime.UtcNow);
+        pagoCospail.AddDeuda(
+            new DeudaCospail(123, "1234567", "Juan Perez", 5, 1, 5, 2026, 7, "2026-07", 100.00m)
+        );
+        var qr = new PagoQr(
+            $"tx-{Guid.NewGuid():N}", "qr-001", 100.00m, "BOB",
+            dueDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
+            true, false, "5", "001", null, DateTime.UtcNow);
+        db.PagosCospail.Add(pagoCospail);
+        db.PagosQr.Add(qr);
+        await db.SaveChangesAsync();
+        pagoCospail.MarkAsQrGenerated(qr.Id);
+        await db.SaveChangesAsync();
+        return pagoCospail;
+    }
 
     private static PaymentsDbContext CreateInMemoryDb()
     {

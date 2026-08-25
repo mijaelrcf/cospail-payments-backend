@@ -99,4 +99,43 @@ public class CospailController : ControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    /// Devuelve el QR vigente (pendiente y no vencido) del socio, para mostrarlo
+    /// hasta que se pague o se anule.
+    /// </summary>
+    /// <param name="fixedCode">Código fijo del socio.</param>
+    /// <param name="documentId">Documento de Identidad o NIT.</param>
+    /// <param name="cancellationToken">Token de cancelación.</param>
+    [HttpGet("payments/active-qr")]
+    [ProducesResponseType(typeof(ActiveQrResponseDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetActiveQr(
+        [FromQuery] int fixedCode,
+        [FromQuery] string documentId,
+        CancellationToken cancellationToken
+    )
+    {
+        if (fixedCode <= 0)
+        {
+            return BadRequest("fixedCode debe ser mayor a cero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(documentId))
+        {
+            return BadRequest("documentId es requerido.");
+        }
+
+        var result = await _cospailService.GetActiveQrAsync(
+            fixedCode,
+            documentId,
+            cancellationToken
+        );
+
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(result);
+    }
 }

@@ -18,5 +18,11 @@ public enum DeudaCospailStatus
     /// <summary>
     /// La deuda fue registrada en Cospail mediante grabarCobrosWEB.
     /// </summary>
-    CospailRegistrado = 2
+    CospailRegistrado = 2,
+
+    /// <summary>
+    /// El QR que incluía esta deuda fue anulado ante Banco Económico. La deuda
+    /// sigue debiéndose en Cospail; puede incluirse en un nuevo pago.
+    /// </summary>
+    Anulado = 3
 }

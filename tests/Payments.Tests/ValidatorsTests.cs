@@ -59,6 +59,39 @@ public sealed class ValidatorsTests
     }
 
     [TestClass]
+    public sealed class AnnulQrRequestDtoValidatorTests
+    {
+        private readonly AnnulQrRequestDtoValidator _validator = new();
+
+        [TestMethod]
+        public void Validate_WhenPagoCospailIdIsPresent_ReturnsNoErrors()
+        {
+            var request = new AnnulQrRequestDto
+            {
+                PagoCospailId = Guid.NewGuid()
+            };
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeTrue();
+        }
+
+        [TestMethod]
+        public void Validate_WhenPagoCospailIdIsEmpty_ReturnsError()
+        {
+            var request = new AnnulQrRequestDto
+            {
+                PagoCospailId = Guid.Empty
+            };
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.PagoCospailId));
+        }
+    }
+
+    [TestClass]
     public sealed class NotifyPaymentQrRequestDtoValidatorTests
     {
         private readonly NotifyPaymentQrRequestDtoValidator _validator = new();

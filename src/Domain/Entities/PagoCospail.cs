@@ -113,6 +113,23 @@ public sealed class PagoCospail
     }
 
     /// <summary>
+    /// Marca el pago como anulado cuando su QR fue anulado ante Banco Económico.
+    /// Es un estado terminal: para pagar de nuevo hay que iniciar un nuevo pago.
+    /// </summary>
+    /// <returns><see langword="true"/> si se produjo la transición de estado.</returns>
+    public bool MarkAsAnulado()
+    {
+        if (Status != PagoCospailStatus.QRGenerado)
+        {
+            return false;
+        }
+
+        Status = PagoCospailStatus.Anulado;
+        Touch();
+        return true;
+    }
+
+    /// <summary>
     /// Marca el pago como pagado según la notificación de Banco Económico. La
     /// operación es idempotente para un pago ya registrado en Cospail.
     /// </summary>

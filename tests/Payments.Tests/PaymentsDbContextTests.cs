@@ -99,7 +99,7 @@ public sealed class PaymentsDbContextTests
         var transactionId = $"test-{Guid.NewGuid():N}";
         var pagoQr = new PagoQr(
             transactionId, $"qr-{Guid.NewGuid():N}", 1.20m, "BOB", DateOnly.FromDateTime(DateTime.UtcNow), true,
-            false, "Prueba de integración", "001", DateTime.UtcNow);
+            false, "Prueba de integración", "001", null, DateTime.UtcNow);
 
         await context.PagosQr.AddAsync(pagoQr);
         await context.SaveChangesAsync();

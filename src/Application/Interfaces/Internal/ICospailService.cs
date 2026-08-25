@@ -37,6 +37,16 @@ public interface ICospailService
     );
 
     /// <summary>
+    /// Devuelve el QR vigente (pendiente y no vencido) del socio, o
+    /// <see langword="null"/> cuando no tiene ninguno.
+    /// </summary>
+    Task<ActiveQrResponseDto?> GetActiveQrAsync(
+        int fixedCode,
+        string documentId,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
     /// Registra el cobro de una deuda en Cospail mediante grabarCobrosWEB.
     /// </summary>
     Task<RecordPaymentResponseDto> RecordDebtPaymentAsync(

@@ -159,6 +159,37 @@ datos están disponibles.
 - Con la base de datos accesible, devuelve `200` con el estado `Healthy`.
 - Con la base de datos inaccesible, devuelve `503` con el estado `Unhealthy`.
 
+### SPEC-007 — Ciclo de vida del QR: consulta y anulación
+
+**Objetivo.** Permitir al frontend recuperar el QR vigente de un socio y
+anularlo cuando el usuario desiste del pago, dejando el intento como registro
+de auditoría y liberando al socio para iniciar un nuevo pago.
+
+**Contrato.** `GET /api/Cospail/payments/active-qr?fixedCode=&documentId=` y
+`POST /api/BancoEconomico/annul-qr` con `pagoCospailId`.
+
+**Reglas y criterios de aceptación.**
+
+- El QR vigente de un socio es aquel en estado `Pendiente` cuyo `dueDate` es
+  hoy o posterior (hora Bolivia). Solo puede existir uno por socio: tanto
+  `payments/initiate` como `generate-qr` devuelven `400` si ya existe.
+- `active-qr` devuelve `200` con `pagoCospailId`, `qrId`, `qrImage`, importe,
+  moneda, vencimiento, estado y fecha de creación; `404` si no hay QR vigente.
+- La anulación consume `DELETE api/qrsimple/cancelQR` de Banco Económico con
+  el `qrId` registrado; errores HTTP, de deserialización o funcionales
+  (`responseCode` distinto de cero) devuelven `500`.
+- Anular un QR ya anulado es idempotente (responde `0` sin llamar al banco);
+  anular un QR pagado devuelve `400`.
+- Tras una anulación exitosa quedan en estado terminal `Anulado`: el QR, el
+  pago (desde `QRGenerado`) y sus deudas (desde `Pendiente`). El intento se
+  conserva como auditoría; las deudas siguen debiéndose en Cospail.
+- Para volver a pagar hay que iniciar un nuevo pago con `payments/initiate`
+  (con las mismas u otras deudas); regenerar un QR sobre un pago anulado
+  devuelve `400` con mensaje explícito.
+- Si llegara una notificación de pago para un QR anulado, la notificación se
+  persiste y se acusa `responseCode: 0`, pero no se registran cobros en
+  Cospail ni cambia el estado del pago (se registra advertencia en el log).
+
 ## 4. Requisitos no funcionales y restricciones actuales
 
 | ID | Especificación |
@@ -190,6 +221,7 @@ datos están disponibles.
 | SPEC-004 | `BancoEconomicoController`, `BancoEconomicoService`, `BancoEconomicoQrClient` |
 | SPEC-005 | `NotifyPaymentQrController`, `BancoEconomicoService.HandlePaymentNotificationAsync` |
 | SPEC-006 | `Program` (`MapHealthChecks` + `AddDbContextCheck`) |
+| SPEC-007 | `CospailController`, `CospailController.GetActiveQrAsync`, `BancoEconomicoController`, `BancoEconomicoService.AnnulQrAsync`, `BancoEconomicoQrClient.AnnulQrAsync` |
 
 ## 7. Observaciones de consistencia para un proceso SDD futuro
 

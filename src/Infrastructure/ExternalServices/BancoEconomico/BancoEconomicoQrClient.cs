@@ -170,4 +170,75 @@ public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
 
         return result;
     }
+
+    /// <summary>
+    /// Anula un código QR pendiente en Banco Económico.
+    /// </summary>
+    public async Task<AnnulQrResponseDto> AnnulQrAsync(
+        string bearerToken,
+        AnnulQrBankRequestDto request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        _logger.LogInformation(
+            "Iniciando anulación de QR en Banco Económico. QrId: {QrId}",
+            request.QrId
+        );
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Delete, "api/qrsimple/cancelQR")
+        {
+            Content = JsonContent.Create(request)
+        };
+
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+
+        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError(
+                "Error HTTP anulando QR en Banco Económico. StatusCode: {StatusCode}, Body: {Body}",
+                response.StatusCode,
+                responseContent
+            );
+
+            throw new HttpRequestException(
+                $"Error anulando QR en Banco Económico. StatusCode: {(int)response.StatusCode}. Body: {responseContent}"
+            );
+        }
+
+        var result = JsonSerializer.Deserialize<AnnulQrResponseDto>(
+            responseContent,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
+
+        if (result is null)
+        {
+            throw new InvalidOperationException(
+                "No se pudo deserializar la respuesta de anulación de QR de Banco Económico."
+            );
+        }
+
+        if (result.ResponseCode != 0)
+        {
+            _logger.LogWarning(
+                "Banco Económico devolvió error funcional al anular QR. ResponseCode: {ResponseCode}, Message: {Message}",
+                result.ResponseCode,
+                result.Message
+            );
+
+            throw new InvalidOperationException(
+                $"Banco Económico rechazó la anulación del QR. Código: {result.ResponseCode}, Mensaje: {result.Message}"
+            );
+        }
+
+        _logger.LogInformation(
+            "QR anulado exitosamente en Banco Económico. QrId: {QrId}",
+            request.QrId
+        );
+
+        return result;
+    }
 }
