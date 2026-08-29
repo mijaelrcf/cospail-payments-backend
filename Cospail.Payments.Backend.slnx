@@ -8,4 +8,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Payments.Tests/Payments.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/PasswordHashGen/PasswordHashGen.csproj" />
+  </Folder>
 </Solution>

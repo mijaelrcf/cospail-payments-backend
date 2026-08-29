@@ -490,7 +490,10 @@ public sealed class CospailServiceTests
         public async Task GetActiveQrAsync_WhenQrIsOverdue_ReturnsNull()
         {
             await using var db = CreateInMemoryDb();
-            await CreatePaymentWithActiveQrAsync(db, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1));
+            await CreatePaymentWithActiveQrAsync(
+                db,
+                DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-4)).AddDays(-1)
+            );
             var service = CreateService(new Mock<ICospailSoapClient>(), db);
 
             var result = await service.GetActiveQrAsync(123, "1234567");

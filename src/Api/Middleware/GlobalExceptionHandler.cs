@@ -48,6 +48,16 @@ public class GlobalExceptionHandler
                 ex.Message
             );
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized");
+            await WriteProblemDetailsAsync(
+                context,
+                StatusCodes.Status401Unauthorized,
+                "Unauthorized",
+                ex.Message
+            );
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled exception");
