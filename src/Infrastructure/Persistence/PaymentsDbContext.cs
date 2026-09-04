@@ -31,6 +31,11 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
     /// </summary>
     public DbSet<NotificacionPagoQr> NotificacionesPagoQr => Set<NotificacionPagoQr>();
 
+    /// <summary>
+    /// Contadores diarios de visitas del frontend cliente.
+    /// </summary>
+    public DbSet<ConteoVisitasDiario> ConteosVisitasDiario => Set<ConteoVisitasDiario>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -40,6 +45,7 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
         ConfigurePagoCospail(modelBuilder);
         ConfigureDeudaCospail(modelBuilder);
         ConfigureNotificacionPagoQr(modelBuilder);
+        ConfigureConteoVisitasDiario(modelBuilder);
     }
 
     private static void ConfigurePagoQr(ModelBuilder modelBuilder)
@@ -144,5 +150,15 @@ public sealed class PaymentsDbContext(DbContextOptions<PaymentsDbContext> option
         notificacion.HasIndex(x => x.QrId);
         notificacion.HasIndex(x => x.TransactionId);
         notificacion.HasIndex(x => x.ReceivedAtUtc);
+    }
+
+    private static void ConfigureConteoVisitasDiario(ModelBuilder modelBuilder)
+    {
+        var conteo = modelBuilder.Entity<ConteoVisitasDiario>();
+        conteo.ToTable("conteo_visitas_diario");
+        conteo.HasKey(x => x.Fecha);
+        conteo.Property(x => x.Fecha).HasColumnName("fecha").HasColumnType("date").IsRequired();
+        conteo.Property(x => x.TotalVisitas).HasColumnName("total_visitas").IsRequired();
+        conteo.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone").IsRequired();
     }
 }

@@ -1,5 +1,7 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Api.Middleware;
+using Microsoft.AspNetCore.RateLimiting;
 using Application.DependencyInjection;
 using Application.Options;
 using Infrastructure.DependencyInjection;
@@ -212,6 +214,22 @@ builder
 // Health checks: verifica conectividad con la base de datos
 builder.Services.AddHealthChecks().AddDbContextCheck<PaymentsDbContext>("database");
 
+// Rate limiting: protege POST /api/analytics/visits (contador puro, sin PII).
+// 60 req/min por IP alcanza para uso normal (1 beacon por sesión) y frena abuso/bots.
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter(
+        policyName: "AnalyticsVisits",
+        options =>
+        {
+            options.PermitLimit = 60;
+            options.Window = TimeSpan.FromMinutes(1);
+            options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+            options.QueueLimit = 0;
+        });
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
 var app = builder.Build();
 
 // Middleware global de errores
@@ -239,6 +257,8 @@ app.UseHttpsRedirection();
 
 // Usar la política de CORS para permitir el acceso desde el frontend
 app.UseCors("FrontendPolicy");
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

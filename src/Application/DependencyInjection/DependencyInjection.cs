@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddScoped<IBancoEconomicoService, BancoEconomicoService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAdminReportService, AdminReportService>();
+        services.AddScoped<IAnalyticsService, AnalyticsService>();
 
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 

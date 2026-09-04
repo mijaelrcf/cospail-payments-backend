@@ -668,6 +668,8 @@ public sealed class BancoEconomicoServiceTests
 
         public DbSet<NotificacionPagoQr> NotificacionesPagoQr => inner.NotificacionesPagoQr;
 
+        public DbSet<ConteoVisitasDiario> ConteosVisitasDiario => inner.ConteosVisitasDiario;
+
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
             throw new DbUpdateException(
                 "An error occurred while saving the entity changes.",

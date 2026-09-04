@@ -29,6 +29,11 @@ public interface IPaymentsDbContext
     DbSet<NotificacionPagoQr> NotificacionesPagoQr { get; }
 
     /// <summary>
+    /// Contadores diarios de visitas del frontend cliente (una fila por día).
+    /// </summary>
+    DbSet<ConteoVisitasDiario> ConteosVisitasDiario { get; }
+
+    /// <summary>
     /// Persiste todos los cambios pendientes.
     /// </summary>
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
