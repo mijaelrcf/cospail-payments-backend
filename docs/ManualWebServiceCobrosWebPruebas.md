@@ -265,6 +265,40 @@ Se utiliza para la impresión de la factura.
 
 Devuelve un documento **PDF** convertido a una cadena en **Base64**.
 
+## SOAP 1.2
+A continuación se muestra un ejemplo de solicitud y respuesta para SOAP 1.2. Es necesario reemplazar los marcadores de posición que aparecen con valores reales.
+
+POST /wstest/wsco.asmx HTTP/1.1  
+Host: ws.cospail.com.bo  
+Content-Type: application/soap+xml; charset=utf-8  
+Content-Length: length  
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Body>
+    <obtenerUnaFacturaPDFB64 xmlns="http://sermix.net/">
+      <NCredito>int</NCredito>
+    </obtenerUnaFacturaPDFB64>
+  </soap12:Body>
+</soap12:Envelope>
+```
+
+HTTP/1.1 200 OK  
+Content-Type: application/soap+xml; charset=utf-8  
+Content-Length: length  
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Body>
+    <obtenerUnaFacturaPDFB64Response xmlns="http://sermix.net/">
+      <obtenerUnaFacturaPDFB64Result>string</obtenerUnaFacturaPDFB64Result>
+    </obtenerUnaFacturaPDFB64Response>
+  </soap12:Body>
+</soap12:Envelope>
+```
+
 ---
 
 # Método: `AnulaCobro`
@@ -291,6 +325,41 @@ Permite obtener el reporte de cobros para una fecha determinada.
 | `lsLogin` | Usuario proporcionado por la cooperativa. |
 | `lsPassword` | Clave proporcionada por la cooperativa. |
 
-## Retorno
+## XML SOAP 1.2
+A continuación se muestra un ejemplo de solicitud y respuesta para SOAP 1.2. Es necesario reemplazar los marcadores de posición que aparecen con valores reales.
 
-No especificado en el documento.
+POST /wstest/wsco.asmx HTTP/1.1  
+Host: ws.cospail.com.bo  
+Content-Type: application/soap+xml; charset=utf-8  
+Content-Length: length  
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Body>
+    <ObtenerCobrosFecha xmlns="http://sermix.net/">
+      <liCfijo>int</liCfijo>
+      <FechaDesde>dateTime</FechaDesde>
+      <FechaHasta>dateTime</FechaHasta>
+      <lsLogin>string</lsLogin>
+      <lsPassword>string</lsPassword>
+    </ObtenerCobrosFecha>
+  </soap12:Body>
+</soap12:Envelope>
+```
+
+HTTP/1.1 200 OK  
+Content-Type: application/soap+xml; charset=utf-8  
+Content-Length: length  
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Body>
+    <ObtenerCobrosFechaResponse xmlns="http://sermix.net/">
+      <ObtenerCobrosFechaResult>
+        <xsd:schema>schema</xsd:schema>xml</ObtenerCobrosFechaResult>
+    </ObtenerCobrosFechaResponse>
+  </soap12:Body>
+</soap12:Envelope>
+```
