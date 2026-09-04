@@ -66,4 +66,22 @@ public interface ICospailService
         PagoCospailStatus status = PagoCospailStatus.CospailRegistrado,
         CancellationToken cancellationToken = default
     );
+
+    /// <summary>
+    /// Devuelve las últimas 6 facturas del socio (últimos 6 meses) desde
+    /// el reporte de cobros de Cospail (<c>ObtenerCobrosFecha</c>).
+    /// El rango se calcula en el servidor: hoy menos 6 meses hasta hoy (hora Bolivia).
+    /// </summary>
+    Task<List<InvoiceSummaryDto>> GetLast6MonthsInvoicesAsync(
+        int fixedCode,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// Devuelve el PDF (Base64) de una factura por número de crédito.
+    /// </summary>
+    Task<InvoicePdfDto> GetInvoicePdfAsync(
+        int creditNumber,
+        CancellationToken cancellationToken = default
+    );
 }

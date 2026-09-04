@@ -301,6 +301,43 @@ public sealed class CospailService(
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<List<InvoiceSummaryDto>> GetLast6MonthsInvoicesAsync(
+        int fixedCode,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (fixedCode <= 0)
+        {
+            throw new ArgumentException("El código fijo debe ser mayor a cero.");
+        }
+
+        var today = BoliviaTime.Today();
+        var to = today.ToDateTime(TimeOnly.MaxValue);
+        var from = today.AddMonths(-6).ToDateTime(TimeOnly.MinValue);
+
+        var invoices = await cospailSoapClient.GetChargesByDateAsync(
+            fixedCode,
+            from,
+            to,
+            cancellationToken
+        );
+
+        return invoices.Take(6).ToList();
+    }
+
+    public async Task<InvoicePdfDto> GetInvoicePdfAsync(
+        int creditNumber,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (creditNumber <= 0)
+        {
+            throw new ArgumentException("El número de crédito debe ser mayor a cero.");
+        }
+
+        return await cospailSoapClient.GetInvoicePdfBase64Async(creditNumber, cancellationToken);
+    }
+
     public async Task<List<RecentPaymentItemDto>> GetRecentPaymentsAsync(
         int fixedCode,
         PagoCospailStatus status = PagoCospailStatus.CospailRegistrado,

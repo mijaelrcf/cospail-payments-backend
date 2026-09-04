@@ -18,4 +18,23 @@ public interface ICospailSoapClient
         RecordPaymentRequestDto requestDto,
         CancellationToken cancellationToken = default
     );
+
+    /// <summary>
+    /// Obtiene el reporte de cobros de un socio en un rango de fechas
+    /// mediante <c>ObtenerCobrosFecha</c>.
+    /// </summary>
+    Task<List<InvoiceSummaryDto>> GetChargesByDateAsync(
+        int fixedCode,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// Obtiene el PDF (Base64) de una factura mediante <c>obtenerUnaFacturaPDFB64</c>.
+    /// </summary>
+    Task<InvoicePdfDto> GetInvoicePdfBase64Async(
+        int creditNumber,
+        CancellationToken cancellationToken = default
+    );
 }

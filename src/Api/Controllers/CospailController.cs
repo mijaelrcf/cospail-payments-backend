@@ -141,6 +141,57 @@ public class CospailController : ControllerBase
     }
 
     /// <summary>
+    /// Devuelve las últimas 6 facturas del socio (últimos 6 meses) desde Cospail.
+    /// El rango de fechas se calcula en el servidor.
+    /// </summary>
+    /// <param name="fixedCode">Código fijo del socio.</param>
+    /// <param name="cancellationToken">Token de cancelación.</param>
+    [HttpGet("invoices/last-6-months")]
+    [ProducesResponseType(typeof(List<InvoiceSummaryDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetLast6MonthsInvoices(
+        [FromQuery] int fixedCode,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (fixedCode <= 0)
+        {
+            return BadRequest("fixedCode debe ser mayor a cero.");
+        }
+
+        var result = await _cospailService.GetLast6MonthsInvoicesAsync(
+            fixedCode,
+            cancellationToken
+        );
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Devuelve el PDF (Base64) de una factura por número de crédito.
+    /// </summary>
+    /// <param name="creditNumber">Número de crédito de la factura.</param>
+    /// <param name="cancellationToken">Token de cancelación.</param>
+    [HttpGet("invoices/{creditNumber:int}/pdf")]
+    [ProducesResponseType(typeof(InvoicePdfDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetInvoicePdf(
+        [FromRoute] int creditNumber,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (creditNumber <= 0)
+        {
+            return BadRequest("creditNumber debe ser mayor a cero.");
+        }
+
+        var result = await _cospailService.GetInvoicePdfAsync(
+            creditNumber,
+            cancellationToken
+        );
+
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Devuelve los últimos 5 pagos de Cospail del socio.
     /// </summary>
     /// <param name="fixedCode">Código fijo del socio.</param>

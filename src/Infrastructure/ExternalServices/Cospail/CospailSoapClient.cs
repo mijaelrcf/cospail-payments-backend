@@ -55,6 +55,53 @@ public sealed class CospailSoapClient : ICospailSoapClient
     }
 
     /// <summary>
+    /// Obtiene el reporte de cobros de un socio en un rango de fechas
+    /// mediante ObtenerCobrosFecha.
+    /// </summary>
+    public async Task<List<InvoiceSummaryDto>> GetChargesByDateAsync(
+        int fixedCode,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default
+    )
+    {
+        const string operationName = "ObtenerCobrosFecha";
+
+        var parameters = new Dictionary<string, string>
+        {
+            ["liCfijo"] = fixedCode.ToString(CultureInfo.InvariantCulture),
+            ["FechaDesde"] = from.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
+            ["FechaHasta"] = to.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
+            ["lsLogin"] = _options.Login,
+            ["lsPassword"] = _options.Password
+        };
+
+        var xml = await SendSoapRequestAsync(operationName, parameters, cancellationToken);
+
+        return ParseChargesByDateResponse(xml);
+    }
+
+    /// <summary>
+    /// Obtiene el PDF (Base64) de una factura mediante obtenerUnaFacturaPDFB64.
+    /// </summary>
+    public async Task<InvoicePdfDto> GetInvoicePdfBase64Async(
+        int creditNumber,
+        CancellationToken cancellationToken = default
+    )
+    {
+        const string operationName = "obtenerUnaFacturaPDFB64";
+
+        var parameters = new Dictionary<string, string>
+        {
+            ["NCredito"] = creditNumber.ToString(CultureInfo.InvariantCulture)
+        };
+
+        var xml = await SendSoapRequestAsync(operationName, parameters, cancellationToken);
+
+        return ParseInvoicePdfResponse(creditNumber, xml);
+    }
+
+    /// <summary>
     /// Registra el cobro de una deuda en Cospail mediante grabarCobrosWEB.
     /// </summary>
     public async Task<RecordPaymentResponseDto> RecordPaymentAsync(
@@ -253,6 +300,79 @@ public sealed class CospailSoapClient : ICospailSoapClient
         };
     }
 
+    private static List<InvoiceSummaryDto> ParseChargesByDateResponse(string xml)
+    {
+        var resultElement = GetSoapResultElement(xml, "ObtenerCobrosFecha");
+        var tables = GetTableElements(resultElement).ToList();
+
+        var invoices = new List<InvoiceSummaryDto>(tables.Count);
+
+        foreach (var table in tables)
+        {
+            var creditNumber = ParseIntAny(table, "NCredito", "NroCredito", "Credito", "CreditNumber");
+            var noticeNumber = ParseIntAny(table, "NAviso", "NroAviso", "Aviso", "NoticeNumber");
+            var period = ParseStringAny(table, "Periodo", "Period", "MesAnio", "Gestion");
+            var memberName = ParseStringAny(table, "Nombre", "Socio", "MemberName");
+            var invoiceNumber = ParseStringAny(table, "NFactura", "NroFactura", "Factura", "InvoiceNumber", "NumFactura");
+            var amount = ParseDecimalAny(table, "Importe", "Deuda", "Monto", "Total", "Amount");
+            var chargeDate = ParseDateTimeAny(table, "Fecha", "FechaPago", "FecPag", "FechaCobro", "Fpago", "ChargeDate");
+
+            // Las filas de control (sin crédito e importe cero) no son facturas.
+            if (creditNumber <= 0 && amount == 0)
+            {
+                continue;
+            }
+
+            invoices.Add(new InvoiceSummaryDto
+            {
+                CreditNumber = creditNumber,
+                NoticeNumber = noticeNumber,
+                Period = period,
+                ChargeDate = chargeDate,
+                Amount = amount,
+                MemberName = memberName,
+                InvoiceNumber = invoiceNumber
+            });
+        }
+
+        return invoices
+            .OrderByDescending(x => x.ChargeDate ?? DateTime.MinValue)
+            .ThenByDescending(x => x.CreditNumber)
+            .ToList();
+    }
+
+    private static InvoicePdfDto ParseInvoicePdfResponse(int creditNumber, string xml)
+    {
+        var resultElement = GetSoapResultElement(xml, "obtenerUnaFacturaPDFB64");
+        var rawResult = resultElement.Value?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(rawResult))
+        {
+            throw new KeyNotFoundException(
+                $"No se encontró la factura para el crédito {creditNumber}."
+            );
+        }
+
+        try
+        {
+            Convert.FromBase64String(rawResult);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException(
+                "La respuesta de Cospail no contiene un PDF Base64 válido.", ex
+            );
+        }
+
+        return new InvoicePdfDto
+        {
+            CreditNumber = creditNumber,
+            FileName = $"factura-{creditNumber}.pdf",
+            ContentType = "application/pdf",
+            PdfBase64 = rawResult
+        };
+    }
+
     private static XElement GetSoapResultElement(string xml, string operationName)
     {
         var document = XDocument.Parse(xml);
@@ -308,5 +428,55 @@ public sealed class CospailSoapClient : ICospailSoapClient
     private static string ParseString(XElement parent, string name)
     {
         return GetElementValue(parent, name) ?? string.Empty;
+    }
+
+    private static string? GetElementValueAny(XElement parent, params string[] names)
+    {
+        var elements = parent.Elements().ToList();
+        foreach (var name in names)
+        {
+            var match = elements.FirstOrDefault(x =>
+                string.Equals(x.Name.LocalName, name, StringComparison.OrdinalIgnoreCase));
+            if (match is not null)
+            {
+                return match.Value;
+            }
+        }
+
+        return null;
+    }
+
+    private static int ParseIntAny(XElement parent, params string[] names)
+    {
+        var value = GetElementValueAny(parent, names);
+        return int.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var number)
+            ? number
+            : 0;
+    }
+
+    private static decimal ParseDecimalAny(XElement parent, params string[] names)
+    {
+        var value = GetElementValueAny(parent, names);
+        return decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var number)
+            ? number
+            : 0m;
+    }
+
+    private static string ParseStringAny(XElement parent, params string[] names)
+    {
+        return GetElementValueAny(parent, names) ?? string.Empty;
+    }
+
+    private static DateTime? ParseDateTimeAny(XElement parent, params string[] names)
+    {
+        var value = GetElementValueAny(parent, names);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+            ? date
+            : null;
     }
 }
