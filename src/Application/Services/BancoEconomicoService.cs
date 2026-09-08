@@ -3,6 +3,7 @@ using Application.DTOs.BancoEconomico.Responses;
 using Application.Interfaces.External;
 using Application.Interfaces.Internal;
 using Application.Interfaces.Persistence;
+using Domain.Common;
 using Domain.Entities;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
@@ -134,7 +135,7 @@ public sealed class BancoEconomicoService(
 
         return new GenerateQrBankRequestDto
         {
-            TransactionId = Guid.NewGuid().ToString("N"),
+            TransactionId = NewId.V7().ToString("N"),
             Currency = "BOB",
             Amount = pagoCospail.TotalAmount,
             Description = BuildDescription(pagoCospail),

@@ -1,3 +1,5 @@
+using Domain.Common;
+
 namespace Domain.Entities;
 
 /// <summary>
@@ -96,7 +98,7 @@ public sealed class PagoQr
         string? qrImage,
         DateTime createdAtUtc)
     {
-        Id = Guid.NewGuid();
+        Id = NewId.V7();
         TransactionId = transactionId;
         QrId = qrId;
         Amount = amount;

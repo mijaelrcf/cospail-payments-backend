@@ -1,3 +1,5 @@
+using Domain.Common;
+
 namespace Domain.Entities;
 
 /// <summary>
@@ -76,7 +78,7 @@ public sealed class PagoCospail
         DateTime createdAtUtc
     )
     {
-        Id = Guid.NewGuid();
+        Id = NewId.V7();
         FixedCode = fixedCode;
         DocumentId = documentId;
         MemberName = memberName;

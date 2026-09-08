@@ -1,3 +1,5 @@
+using Domain.Common;
+
 namespace Domain.Entities;
 
 /// <summary>
@@ -115,7 +117,7 @@ public sealed class NotificacionPagoQr
         DateTime receivedAtUtc
     )
     {
-        Id = Guid.NewGuid();
+        Id = NewId.V7();
         Qr = qr;
         PagoQrId = qr.Id;
         QrId = qrId;

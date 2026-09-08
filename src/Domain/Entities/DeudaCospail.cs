@@ -1,3 +1,5 @@
+using Domain.Common;
+
 namespace Domain.Entities;
 
 /// <summary>
@@ -96,7 +98,7 @@ public sealed class DeudaCospail
         decimal amount
     )
     {
-        Id = Guid.NewGuid();
+        Id = NewId.V7();
         FixedCode = fixedCode;
         DocumentId = documentId;
         MemberName = memberName;

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Application.DTOs.BancoEconomico.Requests;
 using Application.DTOs.BancoEconomico.Responses;
 using Application.Interfaces.Internal;
@@ -43,7 +44,10 @@ public sealed class NotifyPaymentQrController : ControllerBase
         }
         catch (ValidationException ex)
         {
-            _logger.LogWarning(ex, "Banco Económico envió una notificación QR inválida.");
+            _logger.LogWarning(
+                ex,
+                "Banco Económico envió una notificación QR inválida. Payload: {Payload}",
+                SerializePayload(request));
             return Ok(new NotifyPaymentQrResponseDto
             {
                 ResponseCode = 1,
@@ -52,7 +56,10 @@ public sealed class NotifyPaymentQrController : ControllerBase
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(ex, "Banco Económico envió una notificación QR inválida.");
+            _logger.LogWarning(
+                ex,
+                "Banco Económico envió una notificación QR inválida. Payload: {Payload}",
+                SerializePayload(request));
             return Ok(new NotifyPaymentQrResponseDto
             {
                 ResponseCode = 1,
@@ -61,12 +68,44 @@ public sealed class NotifyPaymentQrController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error procesando la notificación QR de Banco Económico.");
+            _logger.LogError(
+                ex,
+                "Error procesando la notificación QR de Banco Económico. Payload: {Payload}",
+                SerializePayload(request));
             return Ok(new NotifyPaymentQrResponseDto
             {
                 ResponseCode = 99,
                 Message = "Ocurrió un error procesando la notificación."
             });
         }
+    }
+
+    /// <summary>
+    /// Serializa el payload recibido a JSON compacto (una línea) para diagnóstico.
+    /// Solo se invoca en el camino de error, por lo que no agrega volumen al log
+    /// en notificaciones exitosas. Nunca lanza: ante cualquier fallo devuelve un
+    /// marcador para no romper la respuesta hacia el banco.
+    /// </summary>
+    private static string SerializePayload(NotifyPaymentQrRequestDto? request)
+    {
+        try
+        {
+            return JsonSerializer.Serialize(request, NotifyPayloadJson.Options);
+        }
+        catch
+        {
+            return "<payload no serializable>";
+        }
+    }
+
+    /// <summary>
+    /// Opciones de serialización del payload de diagnóstico.
+    /// </summary>
+    private static class NotifyPayloadJson
+    {
+        public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
+        {
+            WriteIndented = false
+        };
     }
 }
