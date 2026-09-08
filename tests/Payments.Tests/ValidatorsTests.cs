@@ -153,6 +153,29 @@ public sealed class ValidatorsTests
         }
 
         [TestMethod]
+        public void Validate_WhenPaymentDateIsIsoWithZulu_ReturnsNoErrors()
+        {
+            var request = CreateValidNotification();
+            request.Payment!.PaymentDate = "2026-09-07T04:00:00Z";
+            request.Payment!.PaymentTime = "15:13:57";
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeTrue();
+        }
+
+        [TestMethod]
+        public void Validate_WhenDescriptionIsMissing_ReturnsNoErrors()
+        {
+            var request = CreateValidNotification();
+            request.Payment!.Description = "";
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeTrue();
+        }
+
+        [TestMethod]
         public void Validate_WhenBranchCodeIsMissing_ReturnsNoErrors()
         {
             var request = CreateValidNotification();

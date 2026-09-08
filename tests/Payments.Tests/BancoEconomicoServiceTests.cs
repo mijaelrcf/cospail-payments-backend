@@ -166,19 +166,21 @@ public sealed class BancoEconomicoServiceTests
     }
 
     [TestMethod]
-    public async Task HandlePaymentNotificationAsync_WhenTransactionDoesNotMatch_ReturnsValidationFailure()
+    public async Task HandlePaymentNotificationAsync_WhenTransactionDiffersFromOurs_AcceptsBankTransactionId()
     {
+        // Banco Económico envía su propio transactionId (ej. "18459506"), distinto
+        // del Guid con el que generamos el QR, por lo que no se valida la coincidencia.
         await using var db = CreateInMemoryDb();
         db.PagosQr.Add(CreatePendingQr());
         await db.SaveChangesAsync();
         var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
 
-        var act = () => service.HandlePaymentNotificationAsync(CreateNotification("another-transaction"));
+        var response = await service.HandlePaymentNotificationAsync(CreateNotification("18459506"));
 
-        await act.Should().ThrowAsync<ArgumentException>().WithMessage("*transactionId*");
+        response.ResponseCode.Should().Be(0);
 
         var stored = await db.PagosQr.SingleAsync(x => x.QrId == "qr-001");
-        stored.Status.Should().Be(PagoQrStatus.Pendiente);
+        stored.Status.Should().Be(PagoQrStatus.Pagado);
     }
 
     [TestMethod]

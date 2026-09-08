@@ -288,16 +288,11 @@ public sealed class BancoEconomicoService(
 
         logger.LogInformation("Notificación de pago QR recibida desde Banco Económico.");
 
-        var pagoQr = await dbContext.PagosQr.SingleOrDefaultAsync(x => x.QrId == payment.QrId.Trim(), cancellationToken);
+        var pagoQr = await dbContext.PagosQr.SingleOrDefaultAsync(x => x.QrId == (payment.QrId ?? string.Empty).Trim(), cancellationToken);
 
         if (pagoQr is null)
         {
             throw new ArgumentException("No existe un QR registrado para payment.qrId.");
-        }
-
-        if (!string.Equals(pagoQr.TransactionId, payment.TransactionId.Trim(), StringComparison.Ordinal))
-        {
-            throw new ArgumentException("payment.transactionId no coincide con el QR registrado.");
         }
 
         if (!pagoQr.ModifyAmount && payment.Amount != pagoQr.Amount)
@@ -319,18 +314,18 @@ public sealed class BancoEconomicoService(
 
         dbContext.NotificacionesPagoQr.Add(new NotificacionPagoQr(
             pagoQr,
-            payment.QrId.Trim(),
-            payment.TransactionId.Trim(),
-            payment.PaymentDate,
-            payment.PaymentTime,
+            (payment.QrId ?? string.Empty).Trim(),
+            (payment.TransactionId ?? string.Empty).Trim(),
+            (payment.PaymentDate ?? string.Empty).Trim(),
+            (payment.PaymentTime ?? string.Empty).Trim(),
             paymentAtUtc,
             payment.Currency,
             payment.Amount,
-            payment.SenderBankCode.Trim(),
-            payment.SenderName.Trim(),
-            payment.SenderDocumentId.Trim(),
-            payment.SenderAccount.Trim(),
-            payment.Description.Trim(),
+            (payment.SenderBankCode ?? string.Empty).Trim(),
+            (payment.SenderName ?? string.Empty).Trim(),
+            (payment.SenderDocumentId ?? string.Empty).Trim(),
+            (payment.SenderAccount ?? string.Empty).Trim(),
+            (payment.Description ?? string.Empty).Trim(),
             string.IsNullOrWhiteSpace(payment.BranchCode) ? null : payment.BranchCode.Trim(),
             DateTime.UtcNow
         ));
@@ -438,30 +433,100 @@ public sealed class BancoEconomicoService(
         return true;
     }
 
-    private static DateTime ParsePaymentDateTimeUtc(string paymentDate, string paymentTime)
+    private static DateTime ParsePaymentDateTimeUtc(string? paymentDate, string? paymentTime)
     {
         var date = ParsePaymentDate(paymentDate);
-        var time = TimeOnly.Parse(paymentTime);
+        var time = ParsePaymentTime(paymentTime, paymentDate);
         var localPaymentDateTime = date.ToDateTime(time, DateTimeKind.Unspecified);
 
         // Banco Económico reporta la fecha y hora local de Bolivia (UTC-04:00).
         return new DateTimeOffset(localPaymentDateTime, TimeSpan.FromHours(-4)).UtcDateTime;
     }
 
-    private static DateOnly ParsePaymentDate(string paymentDate)
+    private static DateOnly ParsePaymentDate(string? paymentDate)
     {
-        if (DateOnly.TryParseExact(paymentDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        var value = (paymentDate ?? string.Empty).Trim();
+
+        // Tolerante: si el banco no envía fecha, se usa la fecha actual de Bolivia.
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return BoliviaTime.Today();
+        }
+
+        if (DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
         {
             return date;
         }
 
-        var paymentDateTime = DateTime.ParseExact(
-            paymentDate,
+        if (DateTime.TryParseExact(
+            value,
             "yyyy-MM-ddTHH:mm:ss",
-            CultureInfo.InvariantCulture
-        );
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var dateTime))
+        {
+            return DateOnly.FromDateTime(dateTime);
+        }
 
-        return DateOnly.FromDateTime(paymentDateTime);
+        // Formatos ISO 8601 que envía el banco en producción, ej. "2026-09-07T04:00:00Z"
+        // o con offset "2026-09-07T00:00:00-04:00" (con o sin milisegundos).
+        // Se extrae solo la parte de fecha; la hora se toma de paymentTime.
+        if (value.StartsWith("20", StringComparison.Ordinal) || value.StartsWith("19", StringComparison.Ordinal))
+        {
+            if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
+            {
+                return DateOnly.FromDateTime(dto.DateTime);
+            }
+
+            if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var fallback))
+            {
+                return DateOnly.FromDateTime(fallback);
+            }
+        }
+
+        throw new ArgumentException("payment.paymentDate debe tener formato yyyy-MM-dd o ISO 8601 (yyyy-MM-ddTHH:mm:ss).");
+    }
+
+    private static TimeOnly ParsePaymentTime(string? paymentTime, string? paymentDate)
+    {
+        var timeValue = (paymentTime ?? string.Empty).Trim();
+
+        if (TimeOnly.TryParseExact(timeValue, "HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var time))
+        {
+            return time;
+        }
+
+        if (TimeOnly.TryParseExact(timeValue, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var shortTime))
+        {
+            return shortTime;
+        }
+
+        // Tolerante: si no hay hora separada, se intenta extraer del paymentDate
+        // (ej. "2026-09-07T04:00:00Z") o se usa medianoche.
+        if (string.IsNullOrWhiteSpace(timeValue))
+        {
+            var dateValue = (paymentDate ?? string.Empty).Trim();
+            if (!string.IsNullOrWhiteSpace(dateValue)
+                && DateTimeOffset.TryParse(dateValue, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
+            {
+                return TimeOnly.FromDateTime(dto.DateTime);
+            }
+
+            if (!string.IsNullOrWhiteSpace(dateValue)
+                && DateTime.TryParse(dateValue, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+            {
+                return TimeOnly.FromDateTime(dt);
+            }
+
+            return TimeOnly.MinValue;
+        }
+
+        if (TimeOnly.TryParse(timeValue, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new ArgumentException("payment.paymentTime debe tener formato HH:mm:ss.");
     }
 
     private static bool IsUniqueViolation(DbUpdateException exception)
