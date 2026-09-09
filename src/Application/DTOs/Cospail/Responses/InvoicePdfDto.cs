@@ -5,7 +5,7 @@ namespace Application.DTOs.Cospail.Responses;
 /// </summary>
 public sealed class InvoicePdfDto
 {
-    /// <summary>Número de crédito de la factura solicitada.</summary>
+    /// <summary>IDCredito de la factura solicitada (parámetro SOAP NCredito).</summary>
     public int CreditNumber { get; set; }
 
     /// <summary>Nombre de archivo sugerido para descarga.</summary>

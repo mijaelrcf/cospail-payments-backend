@@ -78,7 +78,8 @@ public interface ICospailService
     );
 
     /// <summary>
-    /// Devuelve el PDF (Base64) de una factura por número de crédito.
+    /// Devuelve el PDF (Base64) de una factura por número de crédito
+    /// (IDCredito del reporte; se envía como NCredito al SOAP).
     /// </summary>
     Task<InvoicePdfDto> GetInvoicePdfAsync(
         int creditNumber,

@@ -167,9 +167,10 @@ public class CospailController : ControllerBase
     }
 
     /// <summary>
-    /// Devuelve el PDF (Base64) de una factura por número de crédito.
+    /// Devuelve el PDF (Base64) de una factura por número de crédito
+    /// (IDCredito del reporte; se envía como NCredito al SOAP).
     /// </summary>
-    /// <param name="creditNumber">Número de crédito de la factura.</param>
+    /// <param name="creditNumber">IDCredito de la factura (parámetro SOAP NCredito).</param>
     /// <param name="cancellationToken">Token de cancelación.</param>
     [HttpGet("invoices/{creditNumber:int}/pdf")]
     [ProducesResponseType(typeof(InvoicePdfDto), StatusCodes.Status200OK)]

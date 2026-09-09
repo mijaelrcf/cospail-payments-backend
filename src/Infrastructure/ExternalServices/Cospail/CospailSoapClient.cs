@@ -83,6 +83,8 @@ public sealed class CospailSoapClient : ICospailSoapClient
 
     /// <summary>
     /// Obtiene el PDF (Base64) de una factura mediante obtenerUnaFacturaPDFB64.
+    /// El parámetro SOAP es NCredito y su valor es el IDCredito del reporte
+    /// (son lo mismo).
     /// </summary>
     public async Task<InvoicePdfDto> GetInvoicePdfBase64Async(
         int creditNumber,
@@ -309,15 +311,17 @@ public sealed class CospailSoapClient : ICospailSoapClient
 
         foreach (var table in tables)
         {
-            var creditNumber = ParseIntAny(table, "NCredito", "NroCredito", "Credito", "CreditNumber");
-            var noticeNumber = ParseIntAny(table, "NAviso", "NroAviso", "Aviso", "NoticeNumber");
-            var period = ParseStringAny(table, "Periodo", "Period", "MesAnio", "Gestion");
-            var memberName = ParseStringAny(table, "Nombre", "Socio", "MemberName");
-            var invoiceNumber = ParseStringAny(table, "NFactura", "NroFactura", "Factura", "InvoiceNumber", "NumFactura");
-            var amount = ParseDecimalAny(table, "Importe", "Deuda", "Monto", "Total", "Amount");
-            var chargeDate = ParseDateTimeAny(table, "Fecha", "FechaPago", "FecPag", "FechaCobro", "Fpago", "ChargeDate");
+            // Campos reales SOAP UI: codCobrador, IDCredito, FechaPago, HoraPago, CodigoFijo, Nombre, Importe.
+            var creditNumber = ParseIntAny(table, "IDCredito");
+            var amount = ParseDecimalAny(table, "Importe");
+            var memberName = ParseStringAny(table, "Nombre");
+            var collectorCode = ParseIntAny(table, "codCobrador");
+            var fixedCode = ParseIntAny(table, "CodigoFijo");
+            var paymentDate = ParseStringAny(table, "FechaPago");
+            var paymentTime = ParseStringAny(table, "HoraPago");
+            var chargeDate = CombinePaymentDateTime(paymentDate, paymentTime);
 
-            // Las filas de control (sin crédito e importe cero) no son facturas.
+            // Las filas vacías (sin IDCredito e importe cero) no son facturas.
             if (creditNumber <= 0 && amount == 0)
             {
                 continue;
@@ -326,12 +330,12 @@ public sealed class CospailSoapClient : ICospailSoapClient
             invoices.Add(new InvoiceSummaryDto
             {
                 CreditNumber = creditNumber,
-                NoticeNumber = noticeNumber,
-                Period = period,
                 ChargeDate = chargeDate,
+                PaymentTime = paymentTime,
                 Amount = amount,
                 MemberName = memberName,
-                InvoiceNumber = invoiceNumber
+                CollectorCode = collectorCode,
+                FixedCode = fixedCode
             });
         }
 
@@ -339,6 +343,62 @@ public sealed class CospailSoapClient : ICospailSoapClient
             .OrderByDescending(x => x.ChargeDate ?? DateTime.MinValue)
             .ThenByDescending(x => x.CreditNumber)
             .ToList();
+    }
+
+    private static DateTime? CombinePaymentDateTime(string paymentDate, string paymentTime)
+    {
+        if (string.IsNullOrWhiteSpace(paymentDate))
+        {
+            return null;
+        }
+
+        var normalizedTime = NormalizePaymentTime(paymentTime);
+        var combined = string.IsNullOrWhiteSpace(normalizedTime)
+            ? paymentDate.Trim()
+            : $"{paymentDate.Trim()} {normalizedTime}";
+
+        string[] formats =
+        [
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd",
+            "dd/MM/yyyy HH:mm:ss",
+            "dd/MM/yyyy HH:mm",
+            "dd/MM/yyyy"
+        ];
+
+        return DateTime.TryParseExact(
+            combined,
+            formats,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var date)
+            ? date
+            : null;
+    }
+
+    private static string NormalizePaymentTime(string paymentTime)
+    {
+        if (string.IsNullOrWhiteSpace(paymentTime))
+        {
+            return string.Empty;
+        }
+
+        var time = paymentTime.Trim();
+
+        // SOAP UI devuelve a veces "16:15:" (con : final). Completar a HH:mm:ss.
+        while (time.EndsWith(":", StringComparison.Ordinal))
+        {
+            time += "00";
+        }
+
+        // "HH:mm" -> "HH:mm:00" para parseo uniforme.
+        if (time.Length == 5 && time[2] == ':')
+        {
+            time += ":00";
+        }
+
+        return time;
     }
 
     private static InvoicePdfDto ParseInvoicePdfResponse(int creditNumber, string xml)
