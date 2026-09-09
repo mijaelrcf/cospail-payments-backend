@@ -353,13 +353,46 @@ Content-Type: application/soap+xml; charset=utf-8
 Content-Length: length  
 
 ```xml
-<?xml version="1.0" encoding="utf-8"?>
-<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
-  <soap12:Body>
-    <ObtenerCobrosFechaResponse xmlns="http://sermix.net/">
-      <ObtenerCobrosFechaResult>
-        <xsd:schema>schema</xsd:schema>xml</ObtenerCobrosFechaResult>
-    </ObtenerCobrosFechaResponse>
-  </soap12:Body>
-</soap12:Envelope>
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+   <soap:Body>
+      <ObtenerCobrosFechaResponse xmlns="http://sermix.net/">
+         <ObtenerCobrosFechaResult>
+            <xs:schema id="NewDataSet" xmlns="" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+               <xs:element name="NewDataSet" msdata:IsDataSet="true" msdata:UseCurrentLocale="true">
+                  <xs:complexType>
+                     <xs:choice minOccurs="0" maxOccurs="unbounded">
+                        <xs:element name="Table">
+                           <xs:complexType>
+                              <xs:sequence>
+                                 <xs:element name="codCobrador" type="xs:int" minOccurs="0"/>
+                                 <xs:element name="IDCredito" type="xs:int" minOccurs="0"/>
+                                 <xs:element name="FechaPago" type="xs:string" minOccurs="0"/>
+                                 <xs:element name="HoraPago" type="xs:string" minOccurs="0"/>
+                                 <xs:element name="CodigoFijo" type="xs:int" minOccurs="0"/>
+                                 <xs:element name="Nombre" type="xs:string" minOccurs="0"/>
+                                 <xs:element name="Importe" type="xs:decimal" minOccurs="0"/>
+                              </xs:sequence>
+                           </xs:complexType>
+                        </xs:element>
+                     </xs:choice>
+                  </xs:complexType>
+               </xs:element>
+            </xs:schema>
+            <diffgr:diffgram xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:diffgr="urn:schemas-microsoft-com:xml-diffgram-v1">
+               <NewDataSet xmlns="">
+                  <Table diffgr:id="Table1" msdata:rowOrder="0">
+                     <codCobrador></codCobrador>
+                     <IDCredito></IDCredito>
+                     <FechaPago></FechaPago>
+                     <HoraPago></HoraPago>
+                     <CodigoFijo></CodigoFijo>
+                     <Nombre></Nombre>
+                     <Importe></Importe>
+                  </Table>
+               </NewDataSet>
+            </diffgr:diffgram>
+         </ObtenerCobrosFechaResult>
+      </ObtenerCobrosFechaResponse>
+   </soap:Body>
+</soap:Envelope>
 ```
