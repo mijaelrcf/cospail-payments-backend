@@ -118,7 +118,7 @@ public sealed class DeudaCospail
     /// <returns><see langword="true"/> si se produjo la transición de estado.</returns>
     public bool MarkAsPagado()
     {
-        if (Status == DeudaCospailStatus.CospailRegistrado)
+        if (Status == DeudaCospailStatus.PagoRegistrado)
         {
             return false;
         }
@@ -131,14 +131,14 @@ public sealed class DeudaCospail
     /// Marca la deuda como registrada en Cospail mediante grabarCobrosWEB.
     /// </summary>
     /// <returns><see langword="true"/> si se produjo la transición de estado.</returns>
-    public bool MarkAsCospailRegistrado()
+    public bool MarkAsPagoRegistrado()
     {
-        if (Status == DeudaCospailStatus.CospailRegistrado)
+        if (Status == DeudaCospailStatus.PagoRegistrado)
         {
             return false;
         }
 
-        Status = DeudaCospailStatus.CospailRegistrado;
+        Status = DeudaCospailStatus.PagoRegistrado;
         return true;
     }
 

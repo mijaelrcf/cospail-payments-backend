@@ -143,7 +143,7 @@ El frontend consume en este orden: `active-qr` → `member-debt-by-document` →
    ```
 
 4. `POST /api/BancoEconomico/generate-qr` — solo `{ "pagoCospailId": "…", "branchCode": "001" }`. La API calcula total, fija `BOB`, genera `transactionId`, define `dueDate` por `QrValidityHours`, arma la descripción y envía `singleUse: true, modifyAmount: false`. Responde `qrId` + `qrImage`. Pago → `QRGenerado`.
-5. Callback `POST /api/qrsimple/notifyPaymentQR` (Banco Económico) — valida, marca pago/deudas `Pagado`, persiste la notificación en `notificaciones_pago_qr` y registra cada cobro en COSPAIL (`grabarCobrosWEB`). Todo OK → `CospailRegistrado`; falla alguno → queda `Pagado` (reintento/conciliación). Ver con `GET /api/Cospail/payments/{pagoCospailId}`.
+5. Callback `POST /api/qrsimple/notifyPaymentQR` (Banco Económico) — valida, marca pago/deudas `Pagado`, persiste la notificación en `notificaciones_pago_qr` y registra cada cobro en COSPAIL (`grabarCobrosWEB`). Todo OK → `PagoRegistrado`; falla alguno → queda `Pagado` (reintento/conciliación). Ver con `GET /api/Cospail/payments/{pagoCospailId}`.
 6. `POST /api/BancoEconomico/annul-qr` (`{ "pagoCospailId": "…" }`) — anula ante el banco (`DELETE api/qrsimple/cancelQR`); QR, pago y deudas → `Anulado`. Para pagar luego, nuevo `initiate`.
 
 > `generate-qr` requiere un `pagoCospailId` en `Pendiente`; no se genera QR directo desde deudas.
@@ -155,7 +155,7 @@ El frontend consume en este orden: `active-qr` → `member-debt-by-document` →
 
 ### 5.3 Pagos recientes (maestro-detalle)
 
-`GET /api/Cospail/payments/recent?fixedCode=123&status=CospailRegistrado` — últimos 5 pagos con deudas anidadas (`pagoCospailId`, `totalAmount`, `debts: [{ creditNumber, period, amount }]`). `status` opcional, default `CospailRegistrado`.
+`GET /api/Cospail/payments/recent?fixedCode=123&status=PagoRegistrado` — últimos 5 pagos con deudas anidadas (`pagoCospailId`, `totalAmount`, `debts: [{ creditNumber, period, amount }]`). `status` opcional, default `PagoRegistrado`.
 
 ## 6. Referencia de endpoints
 
@@ -228,9 +228,9 @@ Requiere JWT con rol `Admin` (`Authorization: Bearer <token>`). En Swagger hay b
 
 ### 7.1 Reporte de pagos
 
-`GET /api/admin/payments/report?from=&to=&status=CospailRegistrado&fixedCode=&documentId=&page=1&pageSize=20`
+`GET /api/admin/payments/report?from=&to=&status=PagoRegistrado&fixedCode=&documentId=&page=1&pageSize=20`
 
-El default `CospailRegistrado` permite detectar pagos varados en `Pagado` (cobrados por el banco, no registrados en COSPAIL).
+El default `PagoRegistrado` permite detectar pagos varados en `Pagado` (cobrados por el banco, no registrados en COSPAIL).
 
 ### 7.2 Cambio de password
 

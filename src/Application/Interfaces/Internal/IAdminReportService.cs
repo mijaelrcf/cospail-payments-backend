@@ -10,7 +10,7 @@ public interface IAdminReportService
 {
     /// <summary>
     /// Devuelve un reporte paginado de pagos de Cospail con sus deudas, aplicando los
-    /// filtros recibidos. El estado predeterminado es <c>CospailRegistrado</c>.
+    /// filtros recibidos. El estado predeterminado es <c>PagoRegistrado</c>.
     /// </summary>
     Task<AdminPaymentReportResponseDto> GetPaymentReportAsync(
         AdminPaymentReportRequestDto request,

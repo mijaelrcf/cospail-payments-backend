@@ -340,7 +340,7 @@ public sealed class CospailService(
 
     public async Task<List<RecentPaymentItemDto>> GetRecentPaymentsAsync(
         int fixedCode,
-        PagoCospailStatus status = PagoCospailStatus.CospailRegistrado,
+        PagoCospailStatus status = PagoCospailStatus.PagoRegistrado,
         CancellationToken cancellationToken = default
     )
     {

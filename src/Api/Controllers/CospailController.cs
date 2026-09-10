@@ -196,13 +196,13 @@ public class CospailController : ControllerBase
     /// Devuelve los últimos 5 pagos de Cospail del socio.
     /// </summary>
     /// <param name="fixedCode">Código fijo del socio.</param>
-    /// <param name="status">Estado del pago (predeterminado: CospailRegistrado).</param>
+    /// <param name="status">Estado del pago (predeterminado: PagoRegistrado).</param>
     /// <param name="cancellationToken">Token de cancelación.</param>
     [HttpGet("payments/recent")]
     [ProducesResponseType(typeof(List<RecentPaymentItemDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetRecentPayments(
         [FromQuery] int fixedCode,
-        [FromQuery] PagoCospailStatus status = PagoCospailStatus.CospailRegistrado,
+        [FromQuery] PagoCospailStatus status = PagoCospailStatus.PagoRegistrado,
         CancellationToken cancellationToken = default
     )
     {

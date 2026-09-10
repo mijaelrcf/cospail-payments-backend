@@ -468,8 +468,8 @@ public sealed class BancoEconomicoServiceTests
         var stored = await db
             .PagosCospail.Include(x => x.Deudas)
             .SingleAsync(x => x.Id == pagoCospail.Id);
-        stored.Status.Should().Be(PagoCospailStatus.CospailRegistrado);
-        stored.Deudas.Single().Status.Should().Be(DeudaCospailStatus.CospailRegistrado);
+        stored.Status.Should().Be(PagoCospailStatus.PagoRegistrado);
+        stored.Deudas.Single().Status.Should().Be(DeudaCospailStatus.PagoRegistrado);
 
         cospailService.Verify(
             x => x.RecordDebtPaymentAsync(5, 1, 100.00m, It.IsAny<CancellationToken>()),

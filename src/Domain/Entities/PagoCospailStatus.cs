@@ -24,7 +24,7 @@ public enum PagoCospailStatus
     /// <summary>
     /// Todas las deudas del pago fueron registradas en Cospail mediante grabarCobrosWEB.
     /// </summary>
-    CospailRegistrado = 3,
+    PagoRegistrado = 3,
 
     /// <summary>
     /// El QR asociado al pago fue anulado ante Banco Económico. Estado terminal:

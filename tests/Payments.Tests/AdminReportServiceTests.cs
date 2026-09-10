@@ -18,7 +18,7 @@ public sealed class AdminReportServiceTests
         public async Task GetPaymentReportAsync_WithNoStatus_ReturnsAllStatuses()
         {
             await using var db = CreateInMemoryDb();
-            await SeedPaymentAsync(db, fixedCode: 123, status: PagoCospailStatus.CospailRegistrado);
+            await SeedPaymentAsync(db, fixedCode: 123, status: PagoCospailStatus.PagoRegistrado);
             await SeedPaymentAsync(db, fixedCode: 321, status: PagoCospailStatus.Pendiente);
             var service = new AdminReportService(db);
 
@@ -33,7 +33,7 @@ public sealed class AdminReportServiceTests
         public async Task GetPaymentReportAsync_FiltersByStatus()
         {
             await using var db = CreateInMemoryDb();
-            await SeedPaymentAsync(db, fixedCode: 123, status: PagoCospailStatus.CospailRegistrado);
+            await SeedPaymentAsync(db, fixedCode: 123, status: PagoCospailStatus.PagoRegistrado);
             await SeedPaymentAsync(db, fixedCode: 321, status: PagoCospailStatus.Pendiente);
             var service = new AdminReportService(db);
 
@@ -52,14 +52,14 @@ public sealed class AdminReportServiceTests
         public async Task GetPaymentReportAsync_FiltersByFixedCode()
         {
             await using var db = CreateInMemoryDb();
-            await SeedPaymentAsync(db, fixedCode: 123, status: PagoCospailStatus.CospailRegistrado);
-            await SeedPaymentAsync(db, fixedCode: 321, status: PagoCospailStatus.CospailRegistrado);
+            await SeedPaymentAsync(db, fixedCode: 123, status: PagoCospailStatus.PagoRegistrado);
+            await SeedPaymentAsync(db, fixedCode: 321, status: PagoCospailStatus.PagoRegistrado);
             var service = new AdminReportService(db);
 
             var result = await service.GetPaymentReportAsync(
                 new AdminPaymentReportRequestDto
                 {
-                    Status = PagoCospailStatus.CospailRegistrado,
+                    Status = PagoCospailStatus.PagoRegistrado,
                     FixedCode = 123
                 }
             );
@@ -135,9 +135,9 @@ public sealed class AdminReportServiceTests
             var item = result.Items.Should().ContainSingle(x => x.PagoCospailId == pago.Id).Subject;
             item.Debts.Should().ContainSingle();
             item.Debts[0].CreditNumber.Should().Be(5);
-            item.Debts[0].Status.Should().Be("CospailRegistrado");
+            item.Debts[0].Status.Should().Be("PagoRegistrado");
             item.TotalAmount.Should().Be(100.00m);
-            item.Status.Should().Be("CospailRegistrado");
+            item.Status.Should().Be("PagoRegistrado");
         }
     }
 
@@ -183,7 +183,7 @@ public sealed class AdminReportServiceTests
         PaymentsDbContext db,
         int fixedCode = 123,
         string documentId = "1234567",
-        PagoCospailStatus status = PagoCospailStatus.CospailRegistrado,
+        PagoCospailStatus status = PagoCospailStatus.PagoRegistrado,
         DateTime? createdAtUtc = null
     )
     {
@@ -220,7 +220,7 @@ public sealed class AdminReportServiceTests
             await db.SaveChangesAsync();
             pago.MarkAsQrGenerated(qr.Id);
         }
-        else if (status is PagoCospailStatus.Pagado or PagoCospailStatus.CospailRegistrado)
+        else if (status is PagoCospailStatus.Pagado or PagoCospailStatus.PagoRegistrado)
         {
             var qr = new PagoQr(
                 $"tx-{Guid.NewGuid():N}",
@@ -240,10 +240,10 @@ public sealed class AdminReportServiceTests
             pago.MarkAsQrGenerated(qr.Id);
             pago.MarkAsPagado();
             pago.Deudas.First().MarkAsPagado();
-            if (status is PagoCospailStatus.CospailRegistrado)
+            if (status is PagoCospailStatus.PagoRegistrado)
             {
-                pago.MarkAsCospailRegistrado();
-                pago.Deudas.First().MarkAsCospailRegistrado();
+                pago.MarkAsPagoRegistrado();
+                pago.Deudas.First().MarkAsPagoRegistrado();
             }
         }
 

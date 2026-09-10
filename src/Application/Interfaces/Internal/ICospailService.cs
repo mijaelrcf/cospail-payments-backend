@@ -63,7 +63,7 @@ public interface ICospailService
     /// </summary>
     Task<List<RecentPaymentItemDto>> GetRecentPaymentsAsync(
         int fixedCode,
-        PagoCospailStatus status = PagoCospailStatus.CospailRegistrado,
+        PagoCospailStatus status = PagoCospailStatus.PagoRegistrado,
         CancellationToken cancellationToken = default
     );
 

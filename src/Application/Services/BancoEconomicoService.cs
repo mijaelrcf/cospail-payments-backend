@@ -365,18 +365,18 @@ public sealed class BancoEconomicoService(
         CancellationToken cancellationToken
     )
     {
-        if (pagoCospail.Status is PagoCospailStatus.CospailRegistrado or PagoCospailStatus.Anulado)
+        if (pagoCospail.Status is PagoCospailStatus.PagoRegistrado or PagoCospailStatus.Anulado)
         {
             return false;
         }
 
         var debtsToRegister = pagoCospail
-            .Deudas.Where(x => x.Status != DeudaCospailStatus.CospailRegistrado)
+            .Deudas.Where(x => x.Status != DeudaCospailStatus.PagoRegistrado)
             .ToList();
 
         if (debtsToRegister.Count == 0)
         {
-            pagoCospail.MarkAsCospailRegistrado();
+            pagoCospail.MarkAsPagoRegistrado();
             return true;
         }
 
@@ -395,7 +395,7 @@ public sealed class BancoEconomicoService(
 
                 if (response.Success)
                 {
-                    deuda.MarkAsCospailRegistrado();
+                    deuda.MarkAsPagoRegistrado();
                 }
                 else
                 {
@@ -424,7 +424,7 @@ public sealed class BancoEconomicoService(
 
         if (allRegistered)
         {
-            pagoCospail.MarkAsCospailRegistrado();
+            pagoCospail.MarkAsPagoRegistrado();
         }
         else
         {

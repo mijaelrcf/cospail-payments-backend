@@ -138,7 +138,7 @@ public sealed class PagoCospail
     /// <returns><see langword="true"/> si se produjo la transición de estado.</returns>
     public bool MarkAsPagado()
     {
-        if (Status == PagoCospailStatus.CospailRegistrado)
+        if (Status == PagoCospailStatus.PagoRegistrado)
         {
             return false;
         }
@@ -153,14 +153,14 @@ public sealed class PagoCospail
     /// fueron registradas mediante grabarCobrosWEB.
     /// </summary>
     /// <returns><see langword="true"/> si se produjo la transición de estado.</returns>
-    public bool MarkAsCospailRegistrado()
+    public bool MarkAsPagoRegistrado()
     {
-        if (Status == PagoCospailStatus.CospailRegistrado)
+        if (Status == PagoCospailStatus.PagoRegistrado)
         {
             return false;
         }
 
-        Status = PagoCospailStatus.CospailRegistrado;
+        Status = PagoCospailStatus.PagoRegistrado;
         Touch();
         return true;
     }
