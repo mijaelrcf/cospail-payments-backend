@@ -10,4 +10,6 @@ namespace Infrastructure.Configuration;
 public sealed class BancoEconomicoQrSettings(IOptions<BancoEconomicoOptions> options) : IBancoEconomicoQrSettings
 {
     public int QrValidityHours => options.Value.QrValidityHours;
+
+    public string AccountCode => options.Value.AccountCredit;
 }

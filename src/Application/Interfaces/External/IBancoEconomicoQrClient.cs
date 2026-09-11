@@ -29,4 +29,28 @@ public interface IBancoEconomicoQrClient
         string bearerToken,
         AnnulQrBankRequestDto request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Consulta el estado actual de un código QR (7.4 statusQR).
+    /// </summary>
+    Task<QrStatusResponseDto> GetQrStatusAsync(
+        string bearerToken,
+        string qrId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retorna el listado de QR pagados en una fecha yyyyMMdd (7.6 paidQR).
+    /// </summary>
+    Task<PaidQrListResponseDto> GetPaidQrListAsync(
+        string bearerToken,
+        string fecha,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Consulta los movimientos de una cuenta por período (8.1 queryMovements).
+    /// </summary>
+    Task<QueryMovementsResponseDto> QueryMovementsAsync(
+        string bearerToken,
+        QueryMovementsBankRequestDto request,
+        CancellationToken cancellationToken = default);
 }

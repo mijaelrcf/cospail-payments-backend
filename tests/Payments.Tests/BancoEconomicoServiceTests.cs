@@ -8,6 +8,7 @@ using Application.Services;
 using Application.Validators;
 using Domain.Entities;
 using FluentAssertions;
+using FluentValidation;
 using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -562,6 +563,102 @@ public sealed class BancoEconomicoServiceTests
         );
     }
 
+    [TestMethod]
+    public async Task GetQrStatusAsync_WhenBankSucceeds_ReturnsBankResponse()
+    {
+        await using var db = CreateInMemoryDb();
+        var client = new Mock<IBancoEconomicoQrClient>();
+        client.Setup(x => x.AuthenticateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AuthenticateResponseDto { Token = "token", ResponseCode = 0 });
+        var expected = new QrStatusResponseDto { StatusQrCode = 1, ResponseCode = 0 };
+        client.Setup(x => x.GetQrStatusAsync("token", "qr-001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+        var service = CreateService(client, db);
+
+        var result = await service.GetQrStatusAsync(new QrStatusRequestDto { QrId = "  qr-001 " });
+
+        result.Should().BeSameAs(expected);
+    }
+
+    [TestMethod]
+    public async Task GetQrStatusAsync_WhenQrIdIsEmpty_ThrowsValidationException()
+    {
+        await using var db = CreateInMemoryDb();
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
+
+        var act = () => service.GetQrStatusAsync(new QrStatusRequestDto { QrId = "  " });
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [TestMethod]
+    public async Task GetPaidQrListAsync_WhenBankSucceeds_ReturnsBankResponse()
+    {
+        await using var db = CreateInMemoryDb();
+        var client = new Mock<IBancoEconomicoQrClient>();
+        client.Setup(x => x.AuthenticateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AuthenticateResponseDto { Token = "token", ResponseCode = 0 });
+        var expected = new PaidQrListResponseDto { ResponseCode = 0 };
+        client.Setup(x => x.GetPaidQrListAsync("token", "20260719", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+        var service = CreateService(client, db);
+
+        var result = await service.GetPaidQrListAsync(new PaidQrListRequestDto { Fecha = "20260719" });
+
+        result.Should().BeSameAs(expected);
+    }
+
+    [TestMethod]
+    public async Task GetPaidQrListAsync_WhenFechaHasInvalidFormat_ThrowsValidationException()
+    {
+        await using var db = CreateInMemoryDb();
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
+
+        var act = () => service.GetPaidQrListAsync(new PaidQrListRequestDto { Fecha = "19-07-2026" });
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    [TestMethod]
+    public async Task QueryMovementsAsync_SendsConfiguredAccountToBank()
+    {
+        await using var db = CreateInMemoryDb();
+        var client = new Mock<IBancoEconomicoQrClient>();
+        client.Setup(x => x.AuthenticateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AuthenticateResponseDto { Token = "token", ResponseCode = 0 });
+        QueryMovementsBankRequestDto? bankRequest = null;
+        client.Setup(x => x.QueryMovementsAsync("token", It.IsAny<QueryMovementsBankRequestDto>(), It.IsAny<CancellationToken>()))
+            .Callback<string, QueryMovementsBankRequestDto, CancellationToken>((_, request, _) => bankRequest = request)
+            .ReturnsAsync(new QueryMovementsResponseDto { ResponseCode = 0 });
+        var service = CreateService(client, db);
+
+        await service.QueryMovementsAsync(new QueryMovementsRequestDto
+        {
+            StartDate = "2026-07-01",
+            EndDate = "2026-07-19"
+        });
+
+        bankRequest.Should().NotBeNull();
+        bankRequest!.AccountCode.Should().Be("cuenta-encriptada");
+        bankRequest.StartDate.Should().Be("2026-07-01");
+        bankRequest.EndDate.Should().Be("2026-07-19");
+    }
+
+    [TestMethod]
+    public async Task QueryMovementsAsync_WhenStartDateIsAfterEndDate_ThrowsValidationException()
+    {
+        await using var db = CreateInMemoryDb();
+        var service = CreateService(new Mock<IBancoEconomicoQrClient>(), db);
+
+        var act = () => service.QueryMovementsAsync(new QueryMovementsRequestDto
+        {
+            StartDate = "2026-07-19",
+            EndDate = "2026-07-01"
+        });
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
     private static BancoEconomicoService CreateService(
         Mock<IBancoEconomicoQrClient> client,
         IPaymentsDbContext db,
@@ -574,6 +671,9 @@ public sealed class BancoEconomicoServiceTests
             new GenerateQrRequestDtoValidator(),
             new NotifyPaymentQrRequestDtoValidator(),
             new AnnulQrRequestDtoValidator(),
+            new QrStatusRequestDtoValidator(),
+            new PaidQrListRequestDtoValidator(),
+            new QueryMovementsRequestDtoValidator(),
             (cospailService ?? CreateCospailService()).Object,
             qrSettings ?? new FakeQrSettings(0),
             NullLogger<BancoEconomicoService>.Instance
@@ -642,6 +742,8 @@ public sealed class BancoEconomicoServiceTests
     private sealed class FakeQrSettings(int validityHours) : IBancoEconomicoQrSettings
     {
         public int QrValidityHours => validityHours;
+
+        public string AccountCode => "cuenta-encriptada";
     }
 
     private static PagoQr CreatePendingQr() => new(

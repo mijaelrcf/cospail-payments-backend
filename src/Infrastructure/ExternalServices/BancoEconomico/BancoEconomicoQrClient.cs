@@ -241,4 +241,210 @@ public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
 
         return result;
     }
+
+    /// <summary>
+    /// Consulta el estado actual de un código QR (7.4 statusQR).
+    /// </summary>
+    public async Task<QrStatusResponseDto> GetQrStatusAsync(
+        string bearerToken,
+        string qrId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        _logger.LogInformation(
+            "Consultando estado de QR en Banco Económico. QrId: {QrId}",
+            qrId
+        );
+
+        using var httpRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"api/qrsimple/v2/statusQR/{Uri.EscapeDataString(qrId)}"
+        );
+
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+
+        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError(
+                "Error HTTP consultando estado de QR en Banco Económico. StatusCode: {StatusCode}, Body: {Body}",
+                response.StatusCode,
+                responseContent
+            );
+
+            throw new HttpRequestException(
+                $"Error consultando estado de QR en Banco Económico. StatusCode: {(int)response.StatusCode}. Body: {responseContent}"
+            );
+        }
+
+        var result = JsonSerializer.Deserialize<QrStatusResponseDto>(
+            responseContent,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
+
+        if (result is null)
+        {
+            throw new InvalidOperationException(
+                "No se pudo deserializar la respuesta de estado de QR de Banco Económico."
+            );
+        }
+
+        if (result.ResponseCode != 0)
+        {
+            _logger.LogWarning(
+                "Banco Económico devolvió error funcional al consultar estado de QR. ResponseCode: {ResponseCode}, Message: {Message}",
+                result.ResponseCode,
+                result.Message
+            );
+
+            throw new InvalidOperationException(
+                $"Banco Económico rechazó la consulta de estado del QR. Código: {result.ResponseCode}, Mensaje: {result.Message}"
+            );
+        }
+
+        result.Payment ??= [];
+
+        return result;
+    }
+
+    /// <summary>
+    /// Retorna el listado de QR pagados en una fecha (7.6 paidQR).
+    /// </summary>
+    public async Task<PaidQrListResponseDto> GetPaidQrListAsync(
+        string bearerToken,
+        string fecha,
+        CancellationToken cancellationToken = default
+    )
+    {
+        _logger.LogInformation(
+            "Consultando QR pagados en Banco Económico. Fecha: {Fecha}",
+            fecha
+        );
+
+        using var httpRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"api/qrsimple/v2/paidQR/{fecha}"
+        );
+
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+
+        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError(
+                "Error HTTP consultando QR pagados en Banco Económico. StatusCode: {StatusCode}, Body: {Body}",
+                response.StatusCode,
+                responseContent
+            );
+
+            throw new HttpRequestException(
+                $"Error consultando QR pagados en Banco Económico. StatusCode: {(int)response.StatusCode}. Body: {responseContent}"
+            );
+        }
+
+        var result = JsonSerializer.Deserialize<PaidQrListResponseDto>(
+            responseContent,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
+
+        if (result is null)
+        {
+            throw new InvalidOperationException(
+                "No se pudo deserializar la respuesta de QR pagados de Banco Económico."
+            );
+        }
+
+        if (result.ResponseCode != 0)
+        {
+            _logger.LogWarning(
+                "Banco Económico devolvió error funcional al consultar QR pagados. ResponseCode: {ResponseCode}, Message: {Message}",
+                result.ResponseCode,
+                result.Message
+            );
+
+            throw new InvalidOperationException(
+                $"Banco Económico rechazó la consulta de QR pagados. Código: {result.ResponseCode}, Mensaje: {result.Message}"
+            );
+        }
+
+        result.PaymentList ??= [];
+
+        return result;
+    }
+
+    /// <summary>
+    /// Consulta los movimientos de una cuenta por período (8.1 queryMovements).
+    /// </summary>
+    public async Task<QueryMovementsResponseDto> QueryMovementsAsync(
+        string bearerToken,
+        QueryMovementsBankRequestDto request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        _logger.LogInformation(
+            "Consultando movimientos en Banco Económico. StartDate: {StartDate}, EndDate: {EndDate}",
+            request.StartDate,
+            request.EndDate
+        );
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "api/accounts/queryMovements")
+        {
+            Content = JsonContent.Create(request)
+        };
+
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+
+        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError(
+                "Error HTTP consultando movimientos en Banco Económico. StatusCode: {StatusCode}, Body: {Body}",
+                response.StatusCode,
+                responseContent
+            );
+
+            throw new HttpRequestException(
+                $"Error consultando movimientos en Banco Económico. StatusCode: {(int)response.StatusCode}. Body: {responseContent}"
+            );
+        }
+
+        var result = JsonSerializer.Deserialize<QueryMovementsResponseDto>(
+            responseContent,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
+
+        if (result is null)
+        {
+            throw new InvalidOperationException(
+                "No se pudo deserializar la respuesta de movimientos de Banco Económico."
+            );
+        }
+
+        if (result.ResponseCode != 0)
+        {
+            _logger.LogWarning(
+                "Banco Económico devolvió error funcional al consultar movimientos. ResponseCode: {ResponseCode}, Message: {Message}",
+                result.ResponseCode,
+                result.Message
+            );
+
+            throw new InvalidOperationException(
+                $"Banco Económico rechazó la consulta de movimientos. Código: {result.ResponseCode}, Mensaje: {result.Message}"
+            );
+        }
+
+        result.AccountDetailList ??= [];
+        result.AccountWithheldList ??= [];
+
+        return result;
+    }
 }

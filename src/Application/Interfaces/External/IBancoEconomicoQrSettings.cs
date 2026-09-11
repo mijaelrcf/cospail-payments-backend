@@ -10,4 +10,10 @@ public interface IBancoEconomicoQrSettings
     /// hoy (hora Bolivia); con 24 vence mañana, con 48 en dos días, etc.
     /// </summary>
     int QrValidityHours { get; }
+
+    /// <summary>
+    /// Cuenta (encriptada) utilizada en las operaciones contra Banco Económico:
+    /// cuenta de acreditación al generar QR y cuenta a consultar en movimientos.
+    /// </summary>
+    string AccountCode { get; }
 }

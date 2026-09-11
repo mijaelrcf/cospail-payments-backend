@@ -28,4 +28,28 @@ public interface IBancoEconomicoService
     Task<NotifyPaymentQrResponseDto> HandlePaymentNotificationAsync(
         NotifyPaymentQrRequestDto request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Consulta el estado actual de un código QR en Banco Económico (7.4).
+    /// Proxy puro: no modifica la base de datos local.
+    /// </summary>
+    Task<QrStatusResponseDto> GetQrStatusAsync(
+        QrStatusRequestDto request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retorna el listado de QR pagados en una fecha en Banco Económico (7.6).
+    /// Proxy puro: no modifica la base de datos local.
+    /// </summary>
+    Task<PaidQrListResponseDto> GetPaidQrListAsync(
+        PaidQrListRequestDto request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Consulta los movimientos de la cuenta configurada por período (8.1).
+    /// Proxy puro: no modifica la base de datos local.
+    /// </summary>
+    Task<QueryMovementsResponseDto> QueryMovementsAsync(
+        QueryMovementsRequestDto request,
+        CancellationToken cancellationToken = default);
 }

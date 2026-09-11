@@ -21,6 +21,9 @@ public sealed class BancoEconomicoService(
     IValidator<GenerateQrRequestDto> generateQrValidator,
     IValidator<NotifyPaymentQrRequestDto> notifyPaymentValidator,
     IValidator<AnnulQrRequestDto> annulQrValidator,
+    IValidator<QrStatusRequestDto> qrStatusValidator,
+    IValidator<PaidQrListRequestDto> paidQrListValidator,
+    IValidator<QueryMovementsRequestDto> queryMovementsValidator,
     ICospailService cospailService,
     IBancoEconomicoQrSettings qrSettings,
     ILogger<BancoEconomicoService> logger
@@ -238,6 +241,100 @@ public sealed class BancoEconomicoService(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return response;
+    }
+
+    /// <inheritdoc />
+    public async Task<QrStatusResponseDto> GetQrStatusAsync(
+        QrStatusRequestDto request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        await qrStatusValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var qrId = request.QrId.Trim();
+
+        logger.LogInformation("Consultando estado de QR. QrId: {QrId}", qrId);
+
+        var auth = await bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(auth.Token))
+        {
+            throw new InvalidOperationException(
+                "No se recibió token de autenticación desde Banco Económico."
+            );
+        }
+
+        return await bancoEconomicoQrClient.GetQrStatusAsync(auth.Token, qrId, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<PaidQrListResponseDto> GetPaidQrListAsync(
+        PaidQrListRequestDto request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        await paidQrListValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var fecha = request.Fecha.Trim();
+
+        logger.LogInformation("Consultando QR pagados. Fecha: {Fecha}", fecha);
+
+        var auth = await bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(auth.Token))
+        {
+            throw new InvalidOperationException(
+                "No se recibió token de autenticación desde Banco Económico."
+            );
+        }
+
+        return await bancoEconomicoQrClient.GetPaidQrListAsync(auth.Token, fecha, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<QueryMovementsResponseDto> QueryMovementsAsync(
+        QueryMovementsRequestDto request,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        await queryMovementsValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(qrSettings.AccountCode))
+        {
+            throw new InvalidOperationException(
+                "No hay una cuenta configurada para consultar movimientos en Banco Económico."
+            );
+        }
+
+        var bankRequest = new QueryMovementsBankRequestDto
+        {
+            AccountCode = qrSettings.AccountCode,
+            StartDate = request.StartDate.Trim(),
+            EndDate = request.EndDate.Trim()
+        };
+
+        logger.LogInformation(
+            "Consultando movimientos. StartDate: {StartDate}, EndDate: {EndDate}",
+            bankRequest.StartDate,
+            bankRequest.EndDate
+        );
+
+        var auth = await bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(auth.Token))
+        {
+            throw new InvalidOperationException(
+                "No se recibió token de autenticación desde Banco Económico."
+            );
+        }
+
+        return await bancoEconomicoQrClient.QueryMovementsAsync(auth.Token, bankRequest, cancellationToken);
     }
 
     private async Task<bool> MemberHasActiveQrAsync(

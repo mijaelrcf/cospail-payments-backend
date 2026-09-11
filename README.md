@@ -67,7 +67,7 @@ $env:Auth__Users__0__DisplayName = 'Administrador'
 Notas:
 
 - `CospailSoap:Login/Password` se inyectan en el sobre SOAP de `grabarCobrosWEB` y `ObtenerCobrosFecha`.
-- `AccountCredit` se resuelve siempre en el servidor; el consumidor no elige la cuenta destino.
+- `AccountCredit` se resuelve siempre en el servidor (generación de QR y consulta de movimientos); el consumidor no elige la cuenta.
 
 ### 3.2 Secret Manager (desarrollo)
 
@@ -178,7 +178,14 @@ El frontend consume en este orden: `active-qr` → `member-debt-by-document` →
 | --- | --- | --- |
 | POST | `/api/BancoEconomico/generate-qr` | Genera QR desde `pagoCospailId` (+ `branchCode?`). |
 | POST | `/api/BancoEconomico/annul-qr` | Anula el QR (`pagoCospailId`). |
+| GET | `/api/BancoEconomico/qr-status/{qrId}` | Verifica el estado de un QR en el banco (7.4: `0` pendiente, `1` pagado, `9` anulado). |
+| GET | `/api/BancoEconomico/paid-qr/{fecha}` | QR pagados en una fecha `yyyyMMdd` para conciliación (7.6). |
+| POST | `/api/BancoEconomico/query-movements` | Movimientos de la cuenta configurada por período `{ startDate, endDate }` (`yyyy-MM-dd`) (8.1). |
 | POST | `/api/qrsimple/notifyPaymentQR` | Callback del banco (`responseCode` 0/1/99, siempre HTTP 200). |
+
+> **Nota de nomenclatura (8.1):** el documento del banco nombraba este servicio como `history`, pero por email el banco confirmó que el nombre correcto es **`queryMovements`** (`POST api/accounts/queryMovements`). En este backend se usa `queryMovements`.
+>
+> Los tres endpoints de consulta (`qr-status`, `paid-qr`, `query-movements`) son **proxy puro**: autentican contra el banco y devuelven su respuesta sin modificar la BD local. `query-movements` usa siempre la cuenta de configuración (`ExternalServices:BanEcoApi:AccountCredit`); el cliente solo envía el período.
 
 ### Analíticas
 

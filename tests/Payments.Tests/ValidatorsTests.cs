@@ -378,4 +378,115 @@ public sealed class ValidatorsTests
             }
         };
     }
+
+    [TestClass]
+    public sealed class QrStatusRequestDtoValidatorTests
+    {
+        private readonly QrStatusRequestDtoValidator _validator = new();
+
+        [TestMethod]
+        public void Validate_WhenQrIdIsPresent_ReturnsNoErrors()
+        {
+            var result = _validator.Validate(new QrStatusRequestDto { QrId = "qr-001" });
+
+            result.IsValid.Should().BeTrue();
+        }
+
+        [TestMethod]
+        public void Validate_WhenQrIdIsEmpty_ReturnsError()
+        {
+            var request = new QrStatusRequestDto { QrId = "  " };
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.QrId));
+        }
+    }
+
+    [TestClass]
+    public sealed class PaidQrListRequestDtoValidatorTests
+    {
+        private readonly PaidQrListRequestDtoValidator _validator = new();
+
+        [TestMethod]
+        public void Validate_WhenFechaIsValid_ReturnsNoErrors()
+        {
+            var result = _validator.Validate(new PaidQrListRequestDto { Fecha = "20260719" });
+
+            result.IsValid.Should().BeTrue();
+        }
+
+        [TestMethod]
+        public void Validate_WhenFechaHasInvalidFormat_ReturnsError()
+        {
+            var request = new PaidQrListRequestDto { Fecha = "19-07-2026" };
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.Fecha));
+        }
+
+        [TestMethod]
+        public void Validate_WhenFechaIsFuture_ReturnsError()
+        {
+            var request = new PaidQrListRequestDto
+            {
+                Fecha = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)).ToString("yyyyMMdd")
+            };
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.Fecha));
+        }
+    }
+
+    [TestClass]
+    public sealed class QueryMovementsRequestDtoValidatorTests
+    {
+        private readonly QueryMovementsRequestDtoValidator _validator = new();
+
+        [TestMethod]
+        public void Validate_WhenRangeIsValid_ReturnsNoErrors()
+        {
+            var result = _validator.Validate(new QueryMovementsRequestDto
+            {
+                StartDate = "2026-07-01",
+                EndDate = "2026-07-19"
+            });
+
+            result.IsValid.Should().BeTrue();
+        }
+
+        [TestMethod]
+        public void Validate_WhenStartDateIsAfterEndDate_ReturnsError()
+        {
+            var request = new QueryMovementsRequestDto
+            {
+                StartDate = "2026-07-19",
+                EndDate = "2026-07-01"
+            };
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeFalse();
+        }
+
+        [TestMethod]
+        public void Validate_WhenDateHasInvalidFormat_ReturnsError()
+        {
+            var request = new QueryMovementsRequestDto
+            {
+                StartDate = "01/07/2026",
+                EndDate = "2026-07-19"
+            };
+
+            var result = _validator.Validate(request);
+
+            result.IsValid.Should().BeFalse();
+            result.Errors.Should().Contain(x => x.PropertyName == nameof(request.StartDate));
+        }
+    }
 }

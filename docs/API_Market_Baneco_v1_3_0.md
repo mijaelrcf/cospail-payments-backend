@@ -515,7 +515,7 @@ Obtiene los movimientos de una cuenta corriente o caja de ahorros por período.
 |-----------|-------|
 | **Descripción** | Consulta de movimientos por período |
 | **Método** | POST |
-| **URI** | `http://[dominio]:[puerto]/api/accounts/history` |
+| **URI** | `http://[dominio]:[puerto]/api/accounts/queryMovements` |
 
 #### Body de la Solicitud
 
