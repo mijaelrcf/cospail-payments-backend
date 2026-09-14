@@ -84,7 +84,41 @@ dotnet user-secrets set "ConnectionStrings:PaymentsDatabase" "Host=...;Database=
 dotnet user-secrets set "Auth:SecretKey" "CLAVE_ALEATORIA_LARGA" --project src/Api
 ```
 
-### 3.3 Migraciones PostgreSQL
+### 3.3 Producción en VPS (variables de entorno)
+
+`appsettings.Production.json` solo lleva lo no-sensible que difiere (CORS del frontend real,
+URLs base de prod, `Swagger:Enabled=false`). Los secretos **nunca** van en archivos: se definen
+como variables de entorno del servicio (`:` → `__`). Sin ellas la API no arranca
+(`ValidateOnStart` falla con `OptionsValidationException` indicando qué falta).
+
+```powershell
+$env:ASPNETCORE_ENVIRONMENT = 'Production'
+
+$env:ConnectionStrings__PaymentsDatabase = 'Host=localhost;Port=5432;Database=cospail_payments;Username=cospail;Password=GENERADA_EN_EL_VPS'
+
+$env:ExternalServices__CospailSoap__Login = 'USUARIO_COSPAIL_PROD'
+$env:ExternalServices__CospailSoap__Password = 'PASSWORD_COSPAIL_PROD'
+
+$env:ExternalServices__BanEcoApi__UserName = 'USUARIO_BANECO_PROD'
+$env:ExternalServices__BanEcoApi__EncryptedPassword = 'PASSWORD_CIFRADO_BANECO_PROD'
+$env:ExternalServices__BanEcoApi__AccountCredit = 'CUENTA_BANECO_PROD'
+# Opcional (default 0 = vence hoy): $env:ExternalServices__BanEcoApi__QrValidityHours = '24'
+
+$env:Auth__SecretKey = 'CLAVE_ALEATORIA_NUEVA_DE_AL_MENOS_32_BYTES_DISTINTA_A_DEV'
+$env:Auth__Users__0__Username = 'admin'
+$env:Auth__Users__0__PasswordHash = 'PBKDF2$...'  # generar con: dotnet run --project tools/PasswordHashGen -- "NuevoPassword"
+$env:Auth__Users__0__DisplayName = 'Administrador'
+```
+
+Notas:
+
+- Reemplaza las `BaseUrl` de `appsettings.Production.json` por las URLs reales de prod
+  (hoy son placeholders `REEMPLAZAR-...`) y el origen de `Cors:AllowedOrigins` por tu dominio.
+- Genera un `SecretKey` y un password distintos a los de dev.
+- Con systemd usa `EnvironmentFile=/etc/cospail-payments.env` (permiso `600`); con Docker Compose,
+  un bloque `environment:` o `env_file` fuera del repo.
+
+### 3.4 Migraciones PostgreSQL
 
 La app exige `ConnectionStrings:PaymentsDatabase` pero no migra sola:
 
@@ -94,7 +128,7 @@ dotnet ef database update --project src/Infrastructure --startup-project src/Api
 dotnet ef migrations add NombreDeLaMigracion --project src/Infrastructure --startup-project src/Api --output-dir Migrations
 ```
 
-### 3.4 Tests
+### 3.5 Tests
 
 ```powershell
 dotnet test tests/Payments.Tests/Payments.Tests.csproj
