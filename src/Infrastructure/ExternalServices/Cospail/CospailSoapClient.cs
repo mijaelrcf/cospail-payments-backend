@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 using Application.DTOs.Cospail.Common;
 using Application.DTOs.Cospail.Requests;
@@ -136,18 +137,18 @@ public sealed class CospailSoapClient : ICospailSoapClient
 
     private async Task<string> SendSoapRequestAsync(
         string operationName,
-        Dictionary<string, string> parameters,
+        IReadOnlyDictionary<string, string> parameters,
         CancellationToken cancellationToken
     )
     {
         var soapEnvelope = BuildSoapEnvelope(operationName, parameters);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, (Uri?)null);
+        using var request = new HttpRequestMessage(HttpMethod.Post, string.Empty);
         request.Headers.Add("SOAPAction", $"\"{ServiceNamespace}{operationName}\"");
         request.Content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
 
         _logger.LogInformation(
-            "Consumiento SOAP Cospail. Operación: {OperationName}",
+            "Consumiendo SOAP Cospail. Operación: {OperationName}",
             operationName
         );
 
@@ -181,28 +182,29 @@ public sealed class CospailSoapClient : ICospailSoapClient
 
     private static string BuildSoapEnvelope(
         string operationName,
-        Dictionary<string, string> parameters
+        IReadOnlyDictionary<string, string> parameters
     )
     {
-        var parametersXml = string.Join(
-            Environment.NewLine,
-            parameters.Select(
-                x => $"      <{x.Key}>{System.Security.SecurityElement.Escape(x.Value)}</{x.Key}>"
-            )
-        );
+        var builder = new StringBuilder(capacity: 512 + parameters.Count * 64);
+        builder.AppendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+        builder.AppendLine("<soap:Envelope xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"");
+        builder.AppendLine("               xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"");
+        builder.AppendLine($"               xmlns:soap=\"{SoapEnvelopeNamespace}\">");
+        builder.AppendLine("  <soap:Body>");
+        builder.AppendLine($"""    <{operationName} xmlns="{ServiceNamespace}">""");
 
-        return $"""
-<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-               xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-               xmlns:soap="{SoapEnvelopeNamespace}">
-  <soap:Body>
-    <{operationName} xmlns="{ServiceNamespace}">
-{parametersXml}
-    </{operationName}>
-  </soap:Body>
-</soap:Envelope>
-""";
+        foreach (var (key, value) in parameters)
+        {
+            builder.Append("      <").Append(key).Append('>');
+            builder.Append(System.Security.SecurityElement.Escape(value));
+            builder.Append("</").Append(key).AppendLine(">");
+        }
+
+        builder.Append("    </").Append(operationName).AppendLine(">");
+        builder.AppendLine("  </soap:Body>");
+        builder.AppendLine("</soap:Envelope>");
+
+        return builder.ToString();
     }
 
     private static GetMemberDebtByDocumentResponse ParseDebtByDocumentResponse(
@@ -312,13 +314,13 @@ public sealed class CospailSoapClient : ICospailSoapClient
         foreach (var table in tables)
         {
             // Campos reales SOAP UI: codCobrador, IDCredito, FechaPago, HoraPago, CodigoFijo, Nombre, Importe.
-            var creditNumber = ParseIntAny(table, "IDCredito");
-            var amount = ParseDecimalAny(table, "Importe");
-            var memberName = ParseStringAny(table, "Nombre");
-            var collectorCode = ParseIntAny(table, "codCobrador");
-            var fixedCode = ParseIntAny(table, "CodigoFijo");
-            var paymentDate = ParseStringAny(table, "FechaPago");
-            var paymentTime = ParseStringAny(table, "HoraPago");
+            var creditNumber = ParseInt(table, "IDCredito");
+            var amount = ParseDecimal(table, "Importe");
+            var memberName = ParseString(table, "Nombre");
+            var collectorCode = ParseInt(table, "codCobrador");
+            var fixedCode = ParseInt(table, "CodigoFijo");
+            var paymentDate = ParseString(table, "FechaPago");
+            var paymentTime = ParseString(table, "HoraPago");
             var chargeDate = CombinePaymentDateTime(paymentDate, paymentTime);
 
             // Las filas vacías (sin IDCredito e importe cero) no son facturas.
@@ -435,7 +437,11 @@ public sealed class CospailSoapClient : ICospailSoapClient
 
     private static XElement GetSoapResultElement(string xml, string operationName)
     {
-        var document = XDocument.Parse(xml);
+        using var reader = XmlReader.Create(
+            new StringReader(xml),
+            new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null }
+        );
+        var document = XDocument.Load(reader);
 
         XNamespace soapNs = SoapEnvelopeNamespace;
         XNamespace serviceNs = ServiceNamespace;
@@ -461,36 +467,7 @@ public sealed class CospailSoapClient : ICospailSoapClient
         return resultElement.Descendants().Where(x => x.Name.LocalName == "Table");
     }
 
-    private static string? GetElementValue(XElement parent, string elementName)
-    {
-        return parent.Elements().FirstOrDefault(x => x.Name.LocalName == elementName)?.Value;
-    }
-
-    private static int ParseInt(XElement parent, string name)
-    {
-        var value = GetElementValue(parent, name);
-        return int.TryParse(value, out var number) ? number : 0;
-    }
-
-    private static decimal ParseDecimal(XElement parent, string name)
-    {
-        var value = GetElementValue(parent, name);
-        return decimal.TryParse(
-            value,
-            NumberStyles.Any,
-            CultureInfo.InvariantCulture,
-            out var number
-        )
-            ? number
-            : 0m;
-    }
-
-    private static string ParseString(XElement parent, string name)
-    {
-        return GetElementValue(parent, name) ?? string.Empty;
-    }
-
-    private static string? GetElementValueAny(XElement parent, params string[] names)
+    private static string? GetElementValue(XElement parent, params string[] names)
     {
         var elements = parent.Elements().ToList();
         foreach (var name in names)
@@ -506,37 +483,24 @@ public sealed class CospailSoapClient : ICospailSoapClient
         return null;
     }
 
-    private static int ParseIntAny(XElement parent, params string[] names)
+    private static int ParseInt(XElement parent, params string[] names)
     {
-        var value = GetElementValueAny(parent, names);
+        var value = GetElementValue(parent, names);
         return int.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var number)
             ? number
             : 0;
     }
 
-    private static decimal ParseDecimalAny(XElement parent, params string[] names)
+    private static decimal ParseDecimal(XElement parent, params string[] names)
     {
-        var value = GetElementValueAny(parent, names);
+        var value = GetElementValue(parent, names);
         return decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var number)
             ? number
             : 0m;
     }
 
-    private static string ParseStringAny(XElement parent, params string[] names)
+    private static string ParseString(XElement parent, params string[] names)
     {
-        return GetElementValueAny(parent, names) ?? string.Empty;
-    }
-
-    private static DateTime? ParseDateTimeAny(XElement parent, params string[] names)
-    {
-        var value = GetElementValueAny(parent, names);
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        return DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
-            ? date
-            : null;
+        return GetElementValue(parent, names) ?? string.Empty;
     }
 }

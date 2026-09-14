@@ -4,7 +4,7 @@ namespace Application.DTOs.BancoEconomico.Responses;
 /// Respuesta de verificación de estado de QR (7.4 statusQR).
 /// statusQrCode: 0 = activo pendiente, 1 = pagado, 9 = anulado.
 /// </summary>
-public sealed class QrStatusResponseDto
+public sealed class QrStatusResponseDto : IBanEcoResponse
 {
     public int? StatusQrCode { get; set; }
     public List<PaymentQrDto> Payment { get; set; } = [];

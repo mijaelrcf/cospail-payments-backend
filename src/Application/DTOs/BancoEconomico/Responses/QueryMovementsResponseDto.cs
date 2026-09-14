@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 /// <summary>
 /// Respuesta de consulta de movimientos de cuenta (8.1 queryMovements).
 /// </summary>
-public sealed class QueryMovementsResponseDto
+public sealed class QueryMovementsResponseDto : IBanEcoResponse
 {
     public int ResponseCode { get; set; }
     public string? Message { get; set; }

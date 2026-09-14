@@ -7,6 +7,7 @@ using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Infrastructure.DependencyInjection;
 
@@ -46,28 +47,26 @@ public static class DependencyInjection
 
         services.AddHttpClient<ICospailSoapClient, CospailSoapClient>(
             (serviceProvider, client) =>
-            {
-                var options = serviceProvider
-                    .GetRequiredService<Microsoft.Extensions.Options.IOptions<CospailSoapOptions>>()
-                    .Value;
-
-                client.BaseAddress = new Uri(options.BaseUrl);
-                client.Timeout = TimeSpan.FromSeconds(30);
-            }
+                ConfigureHttpClient(
+                    client,
+                    serviceProvider.GetRequiredService<IOptions<CospailSoapOptions>>().Value.BaseUrl
+                )
         );
 
         services.AddHttpClient<IBancoEconomicoQrClient, BancoEconomicoQrClient>(
             (serviceProvider, client) =>
-            {
-                var options = serviceProvider
-                    .GetRequiredService<Microsoft.Extensions.Options.IOptions<BancoEconomicoOptions>>()
-                    .Value;
-
-                client.BaseAddress = new Uri(options.BaseUrl);
-                client.Timeout = TimeSpan.FromSeconds(30);
-            }
+                ConfigureHttpClient(
+                    client,
+                    serviceProvider.GetRequiredService<IOptions<BancoEconomicoOptions>>().Value.BaseUrl
+                )
         );
 
         return services;
+    }
+
+    private static void ConfigureHttpClient(HttpClient client, string baseUrl)
+    {
+        client.BaseAddress = new Uri(baseUrl);
+        client.Timeout = TimeSpan.FromSeconds(30);
     }
 }

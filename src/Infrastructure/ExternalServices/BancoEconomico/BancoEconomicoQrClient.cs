@@ -15,6 +15,8 @@ namespace Infrastructure.ExternalServices.BancoEconomico;
 /// </summary>
 public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly HttpClient _httpClient;
     private readonly BancoEconomicoOptions _options;
     private readonly ILogger<BancoEconomicoQrClient> _logger;
@@ -37,59 +39,26 @@ public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
         CancellationToken cancellationToken = default
     )
     {
-        var request = new AuthenticateRequestDto
+        _logger.LogInformation("Iniciando autenticación contra Banco Económico.");
+
+        var payload = new AuthenticateRequestDto
         {
             UserName = _options.UserName,
             Password = _options.EncryptedPassword
         };
 
-        _logger.LogInformation("Iniciando autenticación contra Banco Económico.");
-
-        using var response = await _httpClient.PostAsJsonAsync(
+        var result = await SendBanEcoAsync<AuthenticateResponseDto>(
+            HttpMethod.Post,
             "api/authentication/authenticate",
-            request,
+            bearerToken: null,
+            content: JsonContent.Create(payload),
+            operation: "autenticación",
+            httpError: "Error autenticando contra Banco Económico",
+            nullError: "No se pudo deserializar la respuesta de autenticación de Banco Económico.",
+            rejectedError: "Banco Económico rechazó la autenticación",
+            functionalError: "Banco Económico devolvió error funcional en autenticación",
             cancellationToken
         );
-
-        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError(
-                "Error HTTP autenticando contra Banco Económico. StatusCode: {StatusCode}, Body: {Body}",
-                response.StatusCode,
-                responseContent
-            );
-
-            throw new HttpRequestException(
-                $"Error autenticando contra Banco Económico. StatusCode: {(int)response.StatusCode}. Body: {responseContent}"
-            );
-        }
-
-        var result = JsonSerializer.Deserialize<AuthenticateResponseDto>(
-            responseContent,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-        );
-
-        if (result is null)
-        {
-            throw new InvalidOperationException(
-                "No se pudo deserializar la respuesta de autenticación de Banco Económico."
-            );
-        }
-
-        if (result.ResponseCode != 0)
-        {
-            _logger.LogWarning(
-                "Banco Económico devolvió error funcional en autenticación. ResponseCode: {ResponseCode}, Message: {Message}",
-                result.ResponseCode,
-                result.Message
-            );
-
-            throw new InvalidOperationException(
-                $"Banco Económico rechazó la autenticación. Código: {result.ResponseCode}, Mensaje: {result.Message}"
-            );
-        }
 
         _logger.LogInformation("Autenticación con Banco Económico exitosa.");
 
@@ -112,56 +81,32 @@ public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
             request.Currency
         );
 
-        request.AccountCredit = _options.AccountCredit;
-
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "api/qrsimple/generateQR")
+        // La cuenta siempre la define el servidor; se envía una copia para no mutar el DTO recibido.
+        var payload = new GenerateQrBankRequestDto
         {
-            Content = JsonContent.Create(request)
+            TransactionId = request.TransactionId,
+            AccountCredit = _options.AccountCredit,
+            Currency = request.Currency,
+            Amount = request.Amount,
+            Description = request.Description,
+            DueDate = request.DueDate,
+            SingleUse = request.SingleUse,
+            ModifyAmount = request.ModifyAmount,
+            BranchCode = request.BranchCode
         };
 
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
-
-        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
-
-        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError(
-                "Error HTTP generando QR en Banco Económico. StatusCode: {StatusCode}, Body: {Body}",
-                response.StatusCode,
-                responseContent
-            );
-
-            throw new HttpRequestException(
-                $"Error generando QR en Banco Económico. StatusCode: {(int)response.StatusCode}. Body: {responseContent}"
-            );
-        }
-
-        var result = JsonSerializer.Deserialize<GenerateQrResponseDto>(
-            responseContent,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        var result = await SendBanEcoAsync<GenerateQrResponseDto>(
+            HttpMethod.Post,
+            "api/qrsimple/generateQR",
+            bearerToken,
+            JsonContent.Create(payload),
+            operation: "generación de QR",
+            httpError: "Error generando QR en Banco Económico",
+            nullError: "No se pudo deserializar la respuesta de generación de QR de Banco Económico.",
+            rejectedError: "Banco Económico rechazó la generación del QR",
+            functionalError: "Banco Económico devolvió error funcional al generar QR",
+            cancellationToken
         );
-
-        if (result is null)
-        {
-            throw new InvalidOperationException(
-                "No se pudo deserializar la respuesta de generación de QR de Banco Económico."
-            );
-        }
-
-        if (result.ResponseCode != 0)
-        {
-            _logger.LogWarning(
-                "Banco Económico devolvió error funcional al generar QR. ResponseCode: {ResponseCode}, Message: {Message}",
-                result.ResponseCode,
-                result.Message
-            );
-
-            throw new InvalidOperationException(
-                $"Banco Económico rechazó la generación del QR. Código: {result.ResponseCode}, Mensaje: {result.Message}"
-            );
-        }
 
         _logger.LogInformation(
             "QR generado exitosamente en Banco Económico. QrId: {QrId}",
@@ -185,54 +130,18 @@ public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
             request.QrId
         );
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Delete, "api/qrsimple/cancelQR")
-        {
-            Content = JsonContent.Create(request)
-        };
-
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
-
-        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
-
-        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError(
-                "Error HTTP anulando QR en Banco Económico. StatusCode: {StatusCode}, Body: {Body}",
-                response.StatusCode,
-                responseContent
-            );
-
-            throw new HttpRequestException(
-                $"Error anulando QR en Banco Económico. StatusCode: {(int)response.StatusCode}. Body: {responseContent}"
-            );
-        }
-
-        var result = JsonSerializer.Deserialize<AnnulQrResponseDto>(
-            responseContent,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        var result = await SendBanEcoAsync<AnnulQrResponseDto>(
+            HttpMethod.Delete,
+            "api/qrsimple/cancelQR",
+            bearerToken,
+            JsonContent.Create(request),
+            operation: "anulación de QR",
+            httpError: "Error anulando QR en Banco Económico",
+            nullError: "No se pudo deserializar la respuesta de anulación de QR de Banco Económico.",
+            rejectedError: "Banco Económico rechazó la anulación del QR",
+            functionalError: "Banco Económico devolvió error funcional al anular QR",
+            cancellationToken
         );
-
-        if (result is null)
-        {
-            throw new InvalidOperationException(
-                "No se pudo deserializar la respuesta de anulación de QR de Banco Económico."
-            );
-        }
-
-        if (result.ResponseCode != 0)
-        {
-            _logger.LogWarning(
-                "Banco Económico devolvió error funcional al anular QR. ResponseCode: {ResponseCode}, Message: {Message}",
-                result.ResponseCode,
-                result.Message
-            );
-
-            throw new InvalidOperationException(
-                $"Banco Económico rechazó la anulación del QR. Código: {result.ResponseCode}, Mensaje: {result.Message}"
-            );
-        }
 
         _logger.LogInformation(
             "QR anulado exitosamente en Banco Económico. QrId: {QrId}",
@@ -256,54 +165,18 @@ public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
             qrId
         );
 
-        using var httpRequest = new HttpRequestMessage(
+        var result = await SendBanEcoAsync<QrStatusResponseDto>(
             HttpMethod.Get,
-            $"api/qrsimple/v2/statusQR/{Uri.EscapeDataString(qrId)}"
+            $"api/qrsimple/v2/statusQR/{Uri.EscapeDataString(qrId)}",
+            bearerToken,
+            content: null,
+            operation: "consulta de estado de QR",
+            httpError: "Error consultando estado de QR en Banco Económico",
+            nullError: "No se pudo deserializar la respuesta de estado de QR de Banco Económico.",
+            rejectedError: "Banco Económico rechazó la consulta de estado del QR",
+            functionalError: "Banco Económico devolvió error funcional al consultar estado de QR",
+            cancellationToken
         );
-
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
-
-        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
-
-        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError(
-                "Error HTTP consultando estado de QR en Banco Económico. StatusCode: {StatusCode}, Body: {Body}",
-                response.StatusCode,
-                responseContent
-            );
-
-            throw new HttpRequestException(
-                $"Error consultando estado de QR en Banco Económico. StatusCode: {(int)response.StatusCode}. Body: {responseContent}"
-            );
-        }
-
-        var result = JsonSerializer.Deserialize<QrStatusResponseDto>(
-            responseContent,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-        );
-
-        if (result is null)
-        {
-            throw new InvalidOperationException(
-                "No se pudo deserializar la respuesta de estado de QR de Banco Económico."
-            );
-        }
-
-        if (result.ResponseCode != 0)
-        {
-            _logger.LogWarning(
-                "Banco Económico devolvió error funcional al consultar estado de QR. ResponseCode: {ResponseCode}, Message: {Message}",
-                result.ResponseCode,
-                result.Message
-            );
-
-            throw new InvalidOperationException(
-                $"Banco Económico rechazó la consulta de estado del QR. Código: {result.ResponseCode}, Mensaje: {result.Message}"
-            );
-        }
 
         result.Payment ??= [];
 
@@ -324,54 +197,18 @@ public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
             fecha
         );
 
-        using var httpRequest = new HttpRequestMessage(
+        var result = await SendBanEcoAsync<PaidQrListResponseDto>(
             HttpMethod.Get,
-            $"api/qrsimple/v2/paidQR/{fecha}"
+            $"api/qrsimple/v2/paidQR/{Uri.EscapeDataString(fecha)}",
+            bearerToken,
+            content: null,
+            operation: "consulta de QR pagados",
+            httpError: "Error consultando QR pagados en Banco Económico",
+            nullError: "No se pudo deserializar la respuesta de QR pagados de Banco Económico.",
+            rejectedError: "Banco Económico rechazó la consulta de QR pagados",
+            functionalError: "Banco Económico devolvió error funcional al consultar QR pagados",
+            cancellationToken
         );
-
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
-
-        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
-
-        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError(
-                "Error HTTP consultando QR pagados en Banco Económico. StatusCode: {StatusCode}, Body: {Body}",
-                response.StatusCode,
-                responseContent
-            );
-
-            throw new HttpRequestException(
-                $"Error consultando QR pagados en Banco Económico. StatusCode: {(int)response.StatusCode}. Body: {responseContent}"
-            );
-        }
-
-        var result = JsonSerializer.Deserialize<PaidQrListResponseDto>(
-            responseContent,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-        );
-
-        if (result is null)
-        {
-            throw new InvalidOperationException(
-                "No se pudo deserializar la respuesta de QR pagados de Banco Económico."
-            );
-        }
-
-        if (result.ResponseCode != 0)
-        {
-            _logger.LogWarning(
-                "Banco Económico devolvió error funcional al consultar QR pagados. ResponseCode: {ResponseCode}, Message: {Message}",
-                result.ResponseCode,
-                result.Message
-            );
-
-            throw new InvalidOperationException(
-                $"Banco Económico rechazó la consulta de QR pagados. Código: {result.ResponseCode}, Mensaje: {result.Message}"
-            );
-        }
 
         result.PaymentList ??= [];
 
@@ -393,58 +230,94 @@ public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
             request.EndDate
         );
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "api/accounts/queryMovements")
-        {
-            Content = JsonContent.Create(request)
-        };
-
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
-
-        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
-
-        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError(
-                "Error HTTP consultando movimientos en Banco Económico. StatusCode: {StatusCode}, Body: {Body}",
-                response.StatusCode,
-                responseContent
-            );
-
-            throw new HttpRequestException(
-                $"Error consultando movimientos en Banco Económico. StatusCode: {(int)response.StatusCode}. Body: {responseContent}"
-            );
-        }
-
-        var result = JsonSerializer.Deserialize<QueryMovementsResponseDto>(
-            responseContent,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        var result = await SendBanEcoAsync<QueryMovementsResponseDto>(
+            HttpMethod.Post,
+            "api/accounts/queryMovements",
+            bearerToken,
+            JsonContent.Create(request),
+            operation: "consulta de movimientos",
+            httpError: "Error consultando movimientos en Banco Económico",
+            nullError: "No se pudo deserializar la respuesta de movimientos de Banco Económico.",
+            rejectedError: "Banco Económico rechazó la consulta de movimientos",
+            functionalError: "Banco Económico devolvió error funcional al consultar movimientos",
+            cancellationToken
         );
-
-        if (result is null)
-        {
-            throw new InvalidOperationException(
-                "No se pudo deserializar la respuesta de movimientos de Banco Económico."
-            );
-        }
-
-        if (result.ResponseCode != 0)
-        {
-            _logger.LogWarning(
-                "Banco Económico devolvió error funcional al consultar movimientos. ResponseCode: {ResponseCode}, Message: {Message}",
-                result.ResponseCode,
-                result.Message
-            );
-
-            throw new InvalidOperationException(
-                $"Banco Económico rechazó la consulta de movimientos. Código: {result.ResponseCode}, Mensaje: {result.Message}"
-            );
-        }
 
         result.AccountDetailList ??= [];
         result.AccountWithheldList ??= [];
 
         return result;
+    }
+
+    private async Task<TResponse> SendBanEcoAsync<TResponse>(
+        HttpMethod method,
+        string requestUri,
+        string? bearerToken,
+        HttpContent? content,
+        string operation,
+        string httpError,
+        string nullError,
+        string rejectedError,
+        string functionalError,
+        CancellationToken cancellationToken
+    )
+        where TResponse : IBanEcoResponse
+    {
+        using var httpRequest = new HttpRequestMessage(method, requestUri) { Content = content };
+
+        if (!string.IsNullOrWhiteSpace(bearerToken))
+        {
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        }
+
+        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError(
+                "Error HTTP en {Operation} de Banco Económico. StatusCode: {StatusCode}, Body: {Body}",
+                operation,
+                response.StatusCode,
+                Truncate(responseContent, 500)
+            );
+
+            throw new HttpRequestException(
+                $"{httpError}. StatusCode: {(int)response.StatusCode}. Body: {Truncate(responseContent, 500)}"
+            );
+        }
+
+        var result = JsonSerializer.Deserialize<TResponse>(responseContent, JsonOptions);
+
+        if (result is null)
+        {
+            throw new InvalidOperationException(nullError);
+        }
+
+        if (result.ResponseCode != 0)
+        {
+            _logger.LogWarning(
+                "{FunctionalError}. ResponseCode: {ResponseCode}, Message: {Message}",
+                functionalError,
+                result.ResponseCode,
+                result.Message
+            );
+
+            throw new InvalidOperationException(
+                $"{rejectedError}. Código: {result.ResponseCode}, Mensaje: {result.Message}"
+            );
+        }
+
+        return result;
+    }
+
+    private static string Truncate(string value, int maxLength)
+    {
+        if (value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return $"{value[..maxLength]}... (truncado)";
     }
 }

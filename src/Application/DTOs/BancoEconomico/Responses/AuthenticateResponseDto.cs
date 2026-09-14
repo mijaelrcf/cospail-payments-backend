@@ -3,11 +3,11 @@
 /// <summary>
 /// Response de autenticación de Banco Económico.
 /// </summary>
-public sealed class AuthenticateResponseDto
+public sealed class AuthenticateResponseDto : IBanEcoResponse
 {
     public string Token { get; set; } = string.Empty;
 
     public int ResponseCode { get; set; }
 
-    public string Message { get; set; } = string.Empty;
+    public string? Message { get; set; } = string.Empty;
 }

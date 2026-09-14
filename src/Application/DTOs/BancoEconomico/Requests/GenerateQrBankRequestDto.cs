@@ -10,7 +10,7 @@ public sealed class GenerateQrBankRequestDto
     public string TransactionId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Cuenta de acreditación; el cliente HTTP la reemplaza por el valor configurado en el servidor.
+    /// Cuenta de acreditación; el cliente HTTP envía el valor configurado en el servidor.
     /// </summary>
     public string AccountCredit { get; set; } = string.Empty;
 

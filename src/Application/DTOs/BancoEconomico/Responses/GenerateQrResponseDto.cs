@@ -3,7 +3,7 @@
 /// <summary>
 /// Respuesta de generación de QR del Banco Económico.
 /// </summary>
-public sealed class GenerateQrResponseDto
+public sealed class GenerateQrResponseDto : IBanEcoResponse
 {
     public string? QrId { get; set; }
     public string? QrImage { get; set; }
