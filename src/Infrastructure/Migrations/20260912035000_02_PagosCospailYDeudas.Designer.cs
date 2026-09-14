@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Infrastructure.Migrations
 {
     [DbContext(typeof(PaymentsDbContext))]
-    [Migration("20260810232013_AddCospailDebtPayments")]
-    partial class AddCospailDebtPayments
+    [Migration("20260912035000_02_PagosCospailYDeudas")]
+    partial class _02_PagosCospailYDeudas
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,25 @@ namespace Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Domain.Entities.ConteoVisitasDiario", b =>
+                {
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date")
+                        .HasColumnName("fecha");
+
+                    b.Property<int>("TotalVisitas")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_visitas");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Fecha");
+
+                    b.ToTable("conteo_visitas_diario", (string)null);
+                });
 
             modelBuilder.Entity("Domain.Entities.DeudaCospail", b =>
                 {
@@ -97,6 +116,108 @@ namespace Infrastructure.Migrations
                     b.ToTable("deudas_cospail", (string)null);
                 });
 
+            modelBuilder.Entity("Domain.Entities.NotificacionPagoQr", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("BranchCode")
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)")
+                        .HasColumnName("branch_code");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid>("PagoQrId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pago_qr_id");
+
+                    b.Property<DateTime>("PaymentAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("payment_at_utc");
+
+                    b.Property<string>("PaymentDate")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("payment_date");
+
+                    b.Property<string>("PaymentTime")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("payment_time");
+
+                    b.Property<string>("QrId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("qr_id");
+
+                    b.Property<DateTime>("ReceivedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at_utc");
+
+                    b.Property<string>("SenderAccount")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("sender_account");
+
+                    b.Property<string>("SenderBankCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("sender_bank_code");
+
+                    b.Property<string>("SenderDocumentId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("sender_document_id");
+
+                    b.Property<string>("SenderName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("sender_name");
+
+                    b.Property<string>("TransactionId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("transaction_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PagoQrId");
+
+                    b.HasIndex("QrId");
+
+                    b.HasIndex("ReceivedAtUtc");
+
+                    b.HasIndex("TransactionId");
+
+                    b.ToTable("notificaciones_pago_qr", (string)null);
+                });
+
             modelBuilder.Entity("Domain.Entities.PagoCospail", b =>
                 {
                     b.Property<Guid>("Id")
@@ -144,12 +265,12 @@ namespace Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FixedCode");
-
                     b.HasIndex("PagoQrId")
                         .IsUnique();
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("FixedCode", "DocumentId", "Status");
 
                     b.ToTable("pagos_cospail", (string)null);
                 });
@@ -204,6 +325,10 @@ namespace Infrastructure.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("qr_id");
 
+                    b.Property<string>("QrImage")
+                        .HasColumnType("text")
+                        .HasColumnName("qr_image");
+
                     b.Property<bool>("SingleUse")
                         .HasColumnType("boolean")
                         .HasColumnName("single_use");
@@ -232,6 +357,8 @@ namespace Infrastructure.Migrations
                     b.HasIndex("TransactionId")
                         .IsUnique();
 
+                    b.HasIndex("Status", "DueDate");
+
                     b.ToTable("pagos_qr", (string)null);
                 });
 
@@ -246,11 +373,23 @@ namespace Infrastructure.Migrations
                     b.Navigation("PagoCospail");
                 });
 
+            modelBuilder.Entity("Domain.Entities.NotificacionPagoQr", b =>
+                {
+                    b.HasOne("Domain.Entities.PagoQr", "Qr")
+                        .WithMany()
+                        .HasForeignKey("PagoQrId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Qr");
+                });
+
             modelBuilder.Entity("Domain.Entities.PagoCospail", b =>
                 {
                     b.HasOne("Domain.Entities.PagoQr", "Qr")
                         .WithMany()
-                        .HasForeignKey("PagoQrId");
+                        .HasForeignKey("PagoQrId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Qr");
                 });

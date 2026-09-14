@@ -1,12 +1,15 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace Infrastructure.Migrations
 {
-    /// <inheritdoc />
-    public partial class AddPagoQrNotifications : Migration
+    /// <summary>
+    /// Crea <c>notificaciones_pago_qr</c>.
+    /// Requiere <c>pagos_qr</c>.
+    /// </summary>
+    public partial class _03_NotificacionesPagoQr : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -72,4 +75,3 @@ namespace Infrastructure.Migrations
         }
     }
 }
-

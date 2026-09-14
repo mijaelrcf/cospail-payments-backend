@@ -91,7 +91,7 @@ La app exige `ConnectionStrings:PaymentsDatabase` pero no migra sola:
 ```powershell
 dotnet tool install --global dotnet-ef --version 10.*
 dotnet ef database update --project src/Infrastructure --startup-project src/Api
-dotnet ef migrations add NombreDeLaMigracion --project src/Infrastructure --startup-project src/Api --output-dir Persistence/Migrations
+dotnet ef migrations add NombreDeLaMigracion --project src/Infrastructure --startup-project src/Api --output-dir Migrations
 ```
 
 ### 3.4 Tests

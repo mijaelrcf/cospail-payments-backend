@@ -5,8 +5,11 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Infrastructure.Migrations
 {
-    /// <inheritdoc />
-    public partial class AddCospailDebtPayments : Migration
+    /// <summary>
+    /// Crea <c>pagos_cospail</c> y <c>deudas_cospail</c>.
+    /// Requiere <c>pagos_qr</c> por la FK <c>pagos_cospail.pago_qr_id</c>.
+    /// </summary>
+    public partial class _02_PagosCospailYDeudas : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -32,7 +35,8 @@ namespace Infrastructure.Migrations
                         name: "FK_pagos_cospail_pagos_qr_pago_qr_id",
                         column: x => x.pago_qr_id,
                         principalTable: "pagos_qr",
-                        principalColumn: "id");
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -75,9 +79,9 @@ namespace Infrastructure.Migrations
                 column: "pago_cospail_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_pagos_cospail_fixed_code",
+                name: "IX_pagos_cospail_fixed_code_document_id_status",
                 table: "pagos_cospail",
-                column: "fixed_code");
+                columns: new[] { "fixed_code", "document_id", "status" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_pagos_cospail_pago_qr_id",

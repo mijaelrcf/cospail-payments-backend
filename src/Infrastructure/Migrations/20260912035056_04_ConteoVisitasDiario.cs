@@ -5,8 +5,10 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Infrastructure.Migrations
 {
-    /// <inheritdoc />
-    public partial class AddConteoVisitasDiario : Migration
+    /// <summary>
+    /// Crea <c>conteo_visitas_diario</c>. Tabla independiente, sin FKs.
+    /// </summary>
+    public partial class _04_ConteoVisitasDiario : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

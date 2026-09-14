@@ -262,12 +262,12 @@ namespace Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FixedCode");
-
                     b.HasIndex("PagoQrId")
                         .IsUnique();
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("FixedCode", "DocumentId", "Status");
 
                     b.ToTable("pagos_cospail", (string)null);
                 });
@@ -354,6 +354,8 @@ namespace Infrastructure.Migrations
                     b.HasIndex("TransactionId")
                         .IsUnique();
 
+                    b.HasIndex("Status", "DueDate");
+
                     b.ToTable("pagos_qr", (string)null);
                 });
 
@@ -383,7 +385,8 @@ namespace Infrastructure.Migrations
                 {
                     b.HasOne("Domain.Entities.PagoQr", "Qr")
                         .WithMany()
-                        .HasForeignKey("PagoQrId");
+                        .HasForeignKey("PagoQrId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Qr");
                 });
