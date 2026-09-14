@@ -104,26 +104,12 @@ builder
         );
     });
 
-// Registrar capas
-builder.Services.AddApplication();
+// Registrar capas (incluyen la validación de Options con ValidateOnStart)
+builder.Services.AddApplication(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 
-// Autenticación JWT del panel de administración
-builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
-
+// Autenticación JWT del panel de administración (opciones ya validadas al arrancar)
 var authOptions = builder.Configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
-
-var secretKeyBytes = Encoding.UTF8.GetBytes(authOptions.SecretKey);
-if (string.IsNullOrWhiteSpace(authOptions.SecretKey) || secretKeyBytes.Length < 32)
-{
-    var effective = secretKeyBytes.Length < 32 ? secretKeyBytes.Length * 8 : 0;
-    throw new InvalidOperationException(
-        "La configuración 'Auth:SecretKey' es obligatoria y debe tener al menos 256 bits. " +
-        $"El valor efectivamente cargado solo tiene {effective} bits. " +
-        "Definela en los secrets de desarrollo o en una variable de entorno (Auth__SecretKey); " +
-        "si definiste varias, recuerda que tienen precedencia las variables de entorno y luego los secrets."
-    );
-}
 
 builder
     .Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

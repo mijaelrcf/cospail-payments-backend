@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Application.Options;
 
 /// <summary>
@@ -8,16 +10,19 @@ public sealed class AuthUserOptions
     /// <summary>
     /// Nombre de usuario para iniciar sesión.
     /// </summary>
+    [Required]
     public string Username { get; set; } = string.Empty;
 
     /// <summary>
     /// Hash PBKDF2 del password con el formato
     /// <c>PBKDF2$iteraciones$saltBase64$hashBase64</c>. Nunca se guarda el password en claro.
     /// </summary>
+    [Required]
     public string PasswordHash { get; set; } = string.Empty;
 
     /// <summary>
     /// Nombre legible que se mostrará en el panel.
     /// </summary>
+    [Required]
     public string DisplayName { get; set; } = string.Empty;
 }

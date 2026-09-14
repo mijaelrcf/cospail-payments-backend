@@ -35,13 +35,15 @@ public static class DependencyInjection
             provider.GetRequiredService<PaymentsDbContext>()
         );
 
-        services.Configure<CospailSoapOptions>(
-            configuration.GetSection(CospailSoapOptions.SectionName)
-        );
+        services.AddOptions<CospailSoapOptions>()
+            .Bind(configuration.GetSection(CospailSoapOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
-        services.Configure<BancoEconomicoOptions>(
-            configuration.GetSection(BancoEconomicoOptions.SectionName)
-        );
+        services.AddOptions<BancoEconomicoOptions>()
+            .Bind(configuration.GetSection(BancoEconomicoOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddSingleton<IBancoEconomicoQrSettings, BancoEconomicoQrSettings>();
 
