@@ -26,10 +26,7 @@ public sealed class CospailService(
         CancellationToken cancellationToken = default
     )
     {
-        if (fixedCode <= 0)
-        {
-            throw new ArgumentException("El código fijo debe ser mayor a cero.");
-        }
+        GuardFixedCode(fixedCode);
 
         return await cospailSoapClient.GetMemberDebtByDocumentAsync(
             fixedCode,
@@ -53,25 +50,10 @@ public sealed class CospailService(
             cancellationToken
         );
 
-        if (debtResponse.Status == MemberDebtStatus.MemberNotFound)
-        {
-            throw new ArgumentException("El socio no existe en Cospail.");
-        }
-
-        if (debtResponse.Status == MemberDebtStatus.DocumentMismatch)
-        {
-            throw new ArgumentException("El documento no coincide con el código fijo.");
-        }
-
-        if (debtResponse.Status == MemberDebtStatus.NoDebt)
-        {
-            throw new ArgumentException("El socio no tiene deudas pendientes.");
-        }
+        EnsureDebtAvailable(debtResponse);
 
         var debtToPay = debtResponse.Debts.FirstOrDefault(x =>
-            x.CreditNumber == request.CreditNumber
-            && x.Type == request.Type
-            && x.Amount == request.Amount
+            DebtMatches(x, request.CreditNumber, request.Type, request.Amount)
         );
 
         if (debtToPay is null)
@@ -81,17 +63,8 @@ public sealed class CospailService(
             );
         }
 
-        var paymentDateTime = BoliviaTime.FromUtc(DateTime.UtcNow);
-
         var recordPaymentResponse = await cospailSoapClient.RecordPaymentAsync(
-            new RecordPaymentRequestDto
-            {
-                CreditNumber = request.CreditNumber,
-                Type = request.Type,
-                Amount = request.Amount,
-                PaymentDate = paymentDateTime,
-                PaymentTime = paymentDateTime.ToString("HH:mm:ss")
-            },
+            ToRecordRequest(request.CreditNumber, request.Type, request.Amount),
             cancellationToken
         );
 
@@ -115,17 +88,8 @@ public sealed class CospailService(
         CancellationToken cancellationToken = default
     )
     {
-        var paymentDateTime = BoliviaTime.FromUtc(DateTime.UtcNow);
-
         return await cospailSoapClient.RecordPaymentAsync(
-            new RecordPaymentRequestDto
-            {
-                CreditNumber = creditNumber,
-                Type = type,
-                Amount = amount,
-                PaymentDate = paymentDateTime,
-                PaymentTime = paymentDateTime.ToString("HH:mm:ss")
-            },
+            ToRecordRequest(creditNumber, type, amount),
             cancellationToken
         );
     }
@@ -154,75 +118,11 @@ public sealed class CospailService(
             cancellationToken
         );
 
-        if (debtResponse.Status == MemberDebtStatus.MemberNotFound)
-        {
-            throw new ArgumentException("El socio no existe en Cospail.");
-        }
+        EnsureDebtAvailable(debtResponse);
 
-        if (debtResponse.Status == MemberDebtStatus.DocumentMismatch)
-        {
-            throw new ArgumentException("El documento no coincide con el código fijo.");
-        }
+        var selectedDebts = MatchRequestedDebts(debtResponse.Debts, request.Debts);
 
-        if (debtResponse.Status == MemberDebtStatus.NoDebt)
-        {
-            throw new ArgumentException("El socio no tiene deudas pendientes.");
-        }
-
-        var availableDebts = debtResponse.Debts.ToList();
-        var selectedDebts = new List<DebtItemDto>();
-
-        foreach (var item in request.Debts)
-        {
-            var index = availableDebts.FindIndex(x =>
-                x.CreditNumber == item.CreditNumber
-                && x.Type == item.Type
-                && x.Amount == item.Amount
-            );
-
-            if (index < 0)
-            {
-                throw new ArgumentException(
-                    $"La deuda {item.CreditNumber} (tipo {item.Type}) no coincide con la deuda registrada en Cospail."
-                );
-            }
-
-            selectedDebts.Add(availableDebts[index]);
-            availableDebts.RemoveAt(index);
-        }
-
-        var totalAmount = selectedDebts.Sum(x => x.Amount);
-
-        var pagoCospail = new PagoCospail(
-            request.FixedCode,
-            request.DocumentId,
-            debtResponse.MemberName,
-            totalAmount,
-            DateTime.UtcNow
-        );
-
-        foreach (var deuda in selectedDebts)
-        {
-            pagoCospail.AddDeuda(
-                new DeudaCospail(
-                    request.FixedCode,
-                    request.DocumentId,
-                    debtResponse.MemberName,
-                    deuda.CreditNumber,
-                    deuda.Type,
-                    deuda.NoticeNumber,
-                    deuda.Year,
-                    deuda.Month,
-                    deuda.Period,
-                    deuda.Amount
-                )
-            );
-        }
-
-        dbContext.PagosCospail.Add(pagoCospail);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return ToResponse(pagoCospail);
+        return await CreatePagoCospailAsync(request, debtResponse, selectedDebts, cancellationToken);
     }
 
     public async Task<PagoCospailResponseDto> GetPaymentStatusAsync(
@@ -250,10 +150,7 @@ public sealed class CospailService(
         CancellationToken cancellationToken = default
     )
     {
-        if (fixedCode <= 0)
-        {
-            throw new ArgumentException("El código fijo debe ser mayor a cero.");
-        }
+        GuardFixedCode(fixedCode);
 
         if (string.IsNullOrWhiteSpace(documentId))
         {
@@ -306,10 +203,7 @@ public sealed class CospailService(
         CancellationToken cancellationToken = default
     )
     {
-        if (fixedCode <= 0)
-        {
-            throw new ArgumentException("El código fijo debe ser mayor a cero.");
-        }
+        GuardFixedCode(fixedCode);
 
         var today = BoliviaTime.Today();
         var to = today.ToDateTime(TimeOnly.MaxValue);
@@ -330,10 +224,7 @@ public sealed class CospailService(
         CancellationToken cancellationToken = default
     )
     {
-        if (creditNumber <= 0)
-        {
-            throw new ArgumentException("El número de crédito debe ser mayor a cero.");
-        }
+        GuardCreditNumber(creditNumber);
 
         return await cospailSoapClient.GetInvoicePdfBase64Async(creditNumber, cancellationToken);
     }
@@ -344,10 +235,7 @@ public sealed class CospailService(
         CancellationToken cancellationToken = default
     )
     {
-        if (fixedCode <= 0)
-        {
-            throw new ArgumentException("El código fijo debe ser mayor a cero.");
-        }
+        GuardFixedCode(fixedCode);
 
         var pagos = await dbContext
             .PagosCospail
@@ -362,14 +250,138 @@ public sealed class CospailService(
             {
                 PagoCospailId = x.Id,
                 TotalAmount = x.TotalAmount,
-                Debts = x.Deudas.Select(d => new PaymentDebtDetailDto
-                {
-                    CreditNumber = d.CreditNumber,
-                    Period = d.Period,
-                    Amount = d.Amount
-                }).ToList()
+                Debts = x.Deudas.Select(ToRecentDebtDto).ToList()
             })
             .ToList();
+    }
+
+    private static PaymentDebtDetailDto ToRecentDebtDto(DeudaCospail deuda) =>
+        new()
+        {
+            CreditNumber = deuda.CreditNumber,
+            Period = deuda.Period,
+            Amount = deuda.Amount
+        };
+
+    private static void GuardFixedCode(int fixedCode)
+    {
+        if (fixedCode <= 0)
+        {
+            throw new ArgumentException("El código fijo debe ser mayor a cero.");
+        }
+    }
+
+    private static void GuardCreditNumber(int creditNumber)
+    {
+        if (creditNumber <= 0)
+        {
+            throw new ArgumentException("El número de crédito debe ser mayor a cero.");
+        }
+    }
+
+    private static void EnsureDebtAvailable(GetMemberDebtByDocumentResponse debtResponse)
+    {
+        if (debtResponse.Status == MemberDebtStatus.MemberNotFound)
+        {
+            throw new ArgumentException("El socio no existe en Cospail.");
+        }
+
+        if (debtResponse.Status == MemberDebtStatus.DocumentMismatch)
+        {
+            throw new ArgumentException("El documento no coincide con el código fijo.");
+        }
+
+        if (debtResponse.Status == MemberDebtStatus.NoDebt)
+        {
+            throw new ArgumentException("El socio no tiene deudas pendientes.");
+        }
+    }
+
+    private static bool DebtMatches(DebtItemDto debt, int creditNumber, int type, decimal amount) =>
+        debt.CreditNumber == creditNumber
+        && debt.Type == type
+        && debt.Amount == amount;
+
+    private static bool DebtMatches(DebtItemDto debt, InitiatePaymentDebtDto requested) =>
+        DebtMatches(debt, requested.CreditNumber, requested.Type, requested.Amount);
+
+    private static RecordPaymentRequestDto ToRecordRequest(int creditNumber, int type, decimal amount)
+    {
+        var paymentDateTime = BoliviaTime.FromUtc(DateTime.UtcNow);
+
+        return new RecordPaymentRequestDto
+        {
+            CreditNumber = creditNumber,
+            Type = type,
+            Amount = amount,
+            PaymentDate = paymentDateTime,
+            PaymentTime = paymentDateTime.ToString("HH:mm:ss")
+        };
+    }
+
+    private static List<DebtItemDto> MatchRequestedDebts(
+        IEnumerable<DebtItemDto> available,
+        IEnumerable<InitiatePaymentDebtDto> requested
+    )
+    {
+        var availableDebts = available.ToList();
+        var selectedDebts = new List<DebtItemDto>();
+
+        foreach (var item in requested)
+        {
+            var index = availableDebts.FindIndex(x => DebtMatches(x, item));
+
+            if (index < 0)
+            {
+                throw new ArgumentException(
+                    $"La deuda {item.CreditNumber} (tipo {item.Type}) no coincide con la deuda registrada en Cospail."
+                );
+            }
+
+            selectedDebts.Add(availableDebts[index]);
+            availableDebts.RemoveAt(index);
+        }
+
+        return selectedDebts;
+    }
+
+    private async Task<PagoCospailResponseDto> CreatePagoCospailAsync(
+        InitiatePaymentRequestDto request,
+        GetMemberDebtByDocumentResponse debtResponse,
+        List<DebtItemDto> selectedDebts,
+        CancellationToken cancellationToken
+    )
+    {
+        var pagoCospail = new PagoCospail(
+            request.FixedCode,
+            request.DocumentId,
+            debtResponse.MemberName,
+            selectedDebts.Sum(x => x.Amount),
+            DateTime.UtcNow
+        );
+
+        foreach (var deuda in selectedDebts)
+        {
+            pagoCospail.AddDeuda(
+                new DeudaCospail(
+                    request.FixedCode,
+                    request.DocumentId,
+                    debtResponse.MemberName,
+                    deuda.CreditNumber,
+                    deuda.Type,
+                    deuda.NoticeNumber,
+                    deuda.Year,
+                    deuda.Month,
+                    deuda.Period,
+                    deuda.Amount
+                )
+            );
+        }
+
+        dbContext.PagosCospail.Add(pagoCospail);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return ToResponse(pagoCospail);
     }
 
     private static PagoCospailResponseDto ToResponse(PagoCospail pagoCospail) =>

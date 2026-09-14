@@ -60,10 +60,8 @@ public sealed class AnalyticsService(IPaymentsDbContext dbContext) : IAnalyticsS
         var anio = year ?? hoy.Year;
 
         var dia = await GetPeriodAsync(hoy, hoy, cancellationToken);
-        var mes = await GetPeriodAsync(
-            new DateOnly(anio, hoy.Month, 1),
-            new DateOnly(anio, hoy.Month, DateTime.DaysInMonth(anio, hoy.Month)),
-            cancellationToken);
+        var (mesDesde, mesHasta) = MonthBounds(anio, hoy.Month);
+        var mes = await GetPeriodAsync(mesDesde, mesHasta, cancellationToken);
         // Si piden otro año, el "mes" se refiere al mismo mes de ese año.
         var anioPeriodo = await GetPeriodAsync(
             new DateOnly(anio, 1, 1),
@@ -73,8 +71,7 @@ public sealed class AnalyticsService(IPaymentsDbContext dbContext) : IAnalyticsS
         var serie = new List<AnalyticsMonthlyPointDto>(capacity: 12);
         for (var m = 1; m <= 12; m++)
         {
-            var desde = new DateOnly(anio, m, 1);
-            var hasta = new DateOnly(anio, m, DateTime.DaysInMonth(anio, m));
+            var (desde, hasta) = MonthBounds(anio, m);
             var p = await GetPeriodAsync(desde, hasta, cancellationToken);
             serie.Add(new AnalyticsMonthlyPointDto
             {
@@ -96,6 +93,12 @@ public sealed class AnalyticsService(IPaymentsDbContext dbContext) : IAnalyticsS
         };
     }
 
+    private static (DateOnly Desde, DateOnly Hasta) MonthBounds(int anio, int mes)
+    {
+        var desde = new DateOnly(anio, mes, 1);
+        return (desde, new DateOnly(anio, mes, DateTime.DaysInMonth(anio, mes)));
+    }
+
     private async Task<AnalyticsPeriodDto> GetPeriodAsync(
         DateOnly desde,
         DateOnly hasta,
@@ -106,7 +109,7 @@ public sealed class AnalyticsService(IPaymentsDbContext dbContext) : IAnalyticsS
             .Where(x => x.Fecha >= desde && x.Fecha <= hasta)
             .SumAsync(x => (int?)x.TotalVisitas, cancellationToken) ?? 0;
 
-        var (desdeUtc, hastaUtcExclusivo) = RangoUtc(desde, hasta);
+        var (desdeUtc, hastaUtcExclusivo) = BoliviaTime.ToUtcRange(desde, hasta);
 
         var qrs = await dbContext.PagosQr
             .Where(x => x.CreatedAtUtc >= desdeUtc && x.CreatedAtUtc < hastaUtcExclusivo)
@@ -126,17 +129,5 @@ public sealed class AnalyticsService(IPaymentsDbContext dbContext) : IAnalyticsS
             Pagados = pagos,
             ConversionQrAPago = qrs == 0 ? 0 : (double)pagos / qrs
         };
-    }
-
-    /// <summary>
-    /// Convierte un rango de fechas Bolivia [desde, hasta] inclusivo a rango UTC
-    /// [inicio, finExclusivo). Bolivia es UTC-04:00 fijo (sin DST):
-    /// medianoche Bolivia = 04:00 UTC del mismo día.
-    /// </summary>
-    private static (DateTime DesdeUtc, DateTime HastaUtcExclusivo) RangoUtc(DateOnly desde, DateOnly hasta)
-    {
-        var desdeUtc = new DateTime(desde.Year, desde.Month, desde.Day, 4, 0, 0, DateTimeKind.Utc);
-        var hastaUtcExclusivo = new DateTime(hasta.Year, hasta.Month, hasta.Day, 4, 0, 0, DateTimeKind.Utc).AddDays(1);
-        return (desdeUtc, hastaUtcExclusivo);
     }
 }

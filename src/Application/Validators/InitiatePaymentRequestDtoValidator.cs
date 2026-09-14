@@ -10,13 +10,9 @@ public sealed class InitiatePaymentRequestDtoValidator : AbstractValidator<Initi
 {
     public InitiatePaymentRequestDtoValidator()
     {
-        RuleFor(x => x.FixedCode)
-            .GreaterThan(0)
-            .WithMessage("fixedCode debe ser mayor a cero.");
+        RuleFor(x => x.FixedCode).FixedCode();
 
-        RuleFor(x => x.DocumentId)
-            .NotEmpty()
-            .WithMessage("documentId es requerido.");
+        RuleFor(x => x.DocumentId).DocumentId();
 
         RuleFor(x => x.Debts)
             .NotEmpty()

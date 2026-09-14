@@ -11,9 +11,7 @@ public sealed class GenerateQrRequestDtoValidator : AbstractValidator<GenerateQr
 {
     public GenerateQrRequestDtoValidator()
     {
-        RuleFor(x => x.PagoCospailId)
-            .NotEmpty()
-            .WithMessage("pagoCospailId es requerido.");
+        RuleFor(x => x.PagoCospailId).PagoCospailId();
 
         RuleFor(x => x.BranchCode)
             .MaximumLength(5)

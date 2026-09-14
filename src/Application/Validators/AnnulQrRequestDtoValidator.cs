@@ -10,8 +10,6 @@ public sealed class AnnulQrRequestDtoValidator : AbstractValidator<AnnulQrReques
 {
     public AnnulQrRequestDtoValidator()
     {
-        RuleFor(x => x.PagoCospailId)
-            .NotEmpty()
-            .WithMessage("pagoCospailId es requerido.");
+        RuleFor(x => x.PagoCospailId).PagoCospailId();
     }
 }

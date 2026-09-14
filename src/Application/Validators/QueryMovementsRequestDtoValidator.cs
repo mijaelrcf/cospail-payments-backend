@@ -1,3 +1,4 @@
+using Application.Common;
 using Application.DTOs.BancoEconomico.Requests;
 using FluentValidation;
 using System.Globalization;
@@ -31,7 +32,7 @@ public sealed class QueryMovementsRequestDtoValidator : AbstractValidator<QueryM
     private static bool BeValidDate(string? value) =>
         DateOnly.TryParseExact(
             (value ?? string.Empty).Trim(),
-            "yyyy-MM-dd",
+            PaymentDateTime.DateFormat,
             CultureInfo.InvariantCulture,
             DateTimeStyles.None,
             out _);
@@ -43,8 +44,8 @@ public sealed class QueryMovementsRequestDtoValidator : AbstractValidator<QueryM
             return true;
         }
 
-        var start = DateOnly.ParseExact(request.StartDate.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var end = DateOnly.ParseExact(request.EndDate.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var start = DateOnly.ParseExact(request.StartDate.Trim(), PaymentDateTime.DateFormat, CultureInfo.InvariantCulture);
+        var end = DateOnly.ParseExact(request.EndDate.Trim(), PaymentDateTime.DateFormat, CultureInfo.InvariantCulture);
 
         return start <= end;
     }

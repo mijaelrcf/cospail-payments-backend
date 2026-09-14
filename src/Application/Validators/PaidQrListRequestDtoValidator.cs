@@ -1,3 +1,4 @@
+using Application.Common;
 using Application.DTOs.BancoEconomico.Requests;
 using FluentValidation;
 using System.Globalization;
@@ -25,7 +26,7 @@ public sealed class PaidQrListRequestDtoValidator : AbstractValidator<PaidQrList
     private static bool BeValidDate(string fecha) =>
         DateOnly.TryParseExact(
             (fecha ?? string.Empty).Trim(),
-            "yyyyMMdd",
+            PaymentDateTime.CompactDateFormat,
             CultureInfo.InvariantCulture,
             DateTimeStyles.None,
             out _);
@@ -34,7 +35,7 @@ public sealed class PaidQrListRequestDtoValidator : AbstractValidator<PaidQrList
     {
         if (!DateOnly.TryParseExact(
             (fecha ?? string.Empty).Trim(),
-            "yyyyMMdd",
+            PaymentDateTime.CompactDateFormat,
             CultureInfo.InvariantCulture,
             DateTimeStyles.None,
             out var date))

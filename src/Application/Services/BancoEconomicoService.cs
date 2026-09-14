@@ -1,3 +1,4 @@
+using Application.Common;
 using Application.DTOs.BancoEconomico.Requests;
 using Application.DTOs.BancoEconomico.Responses;
 using Application.Interfaces.External;
@@ -39,14 +40,8 @@ public sealed class BancoEconomicoService(
 
         await generateQrValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        var pagoCospail = await dbContext
-            .PagosCospail.Include(x => x.Deudas)
-            .SingleOrDefaultAsync(x => x.Id == request.PagoCospailId, cancellationToken);
-
-        if (pagoCospail is null)
-        {
-            throw new ArgumentException("pagoCospailId no existe.");
-        }
+        var pagoCospail = await GetPagoCospailWithDeudasAsync(request.PagoCospailId, cancellationToken)
+            ?? throw new ArgumentException("pagoCospailId no existe.");
 
         if (pagoCospail.Status != PagoCospailStatus.Pendiente)
         {
@@ -74,17 +69,10 @@ public sealed class BancoEconomicoService(
             bankRequest.Currency
         );
 
-        var auth = await bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
-
-        if (string.IsNullOrWhiteSpace(auth.Token))
-        {
-            throw new InvalidOperationException(
-                "No se recibió token de autenticación desde Banco Económico."
-            );
-        }
+        var token = await GetBankTokenAsync(cancellationToken);
 
         var response = await bancoEconomicoQrClient.GenerateQrAsync(
-            auth.Token,
+            token,
             bankRequest,
             cancellationToken
         );
@@ -99,7 +87,7 @@ public sealed class BancoEconomicoService(
             response.QrId.Trim(),
             bankRequest.Amount,
             bankRequest.Currency,
-            DateOnly.ParseExact(bankRequest.DueDate, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            DateOnly.ParseExact(bankRequest.DueDate, PaymentDateTime.DateFormat, CultureInfo.InvariantCulture),
             bankRequest.SingleUse,
             bankRequest.ModifyAmount,
             bankRequest.Description?.Trim(),
@@ -110,7 +98,7 @@ public sealed class BancoEconomicoService(
 
         dbContext.PagosQr.Add(pagoQr);
 
-        if (pagoCospail is not null && !pagoCospail.MarkAsQrGenerated(pagoQr.Id))
+        if (!pagoCospail.MarkAsQrGenerated(pagoQr.Id))
         {
             throw new ArgumentException("El pago ya tiene un QR asociado.");
         }
@@ -127,31 +115,6 @@ public sealed class BancoEconomicoService(
         return response;
     }
 
-    /// <summary>
-    /// Construye el payload para Banco Económico a partir del pago de Cospail.
-    /// El importe, la moneda, la transacción y el vencimiento se resuelven en el servidor.
-    /// </summary>
-    private GenerateQrBankRequestDto BuildBankRequest(PagoCospail pagoCospail, string? branchCode)
-    {
-        var expiresAtUtc = DateTime.UtcNow.AddHours(qrSettings.QrValidityHours);
-        var dueDate = DateOnly.FromDateTime(BoliviaTime.FromUtc(expiresAtUtc));
-
-        return new GenerateQrBankRequestDto
-        {
-            TransactionId = NewId.V7().ToString("N"),
-            Currency = "BOB",
-            Amount = pagoCospail.TotalAmount,
-            Description = BuildDescription(pagoCospail),
-            DueDate = dueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            SingleUse = true,
-            ModifyAmount = false,
-            BranchCode = branchCode?.Trim()
-        };
-    }
-
-    private static string BuildDescription(PagoCospail pagoCospail) =>
-        string.Join(",", pagoCospail.Deudas.Select(x => x.CreditNumber).Distinct());
-
     /// <inheritdoc />
     public async Task<AnnulQrResponseDto> AnnulQrAsync(
         AnnulQrRequestDto request,
@@ -162,15 +125,8 @@ public sealed class BancoEconomicoService(
 
         await annulQrValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        var pagoCospail = await dbContext
-            .PagosCospail.Include(x => x.Qr)
-            .Include(x => x.Deudas)
-            .SingleOrDefaultAsync(x => x.Id == request.PagoCospailId, cancellationToken);
-
-        if (pagoCospail is null)
-        {
-            throw new ArgumentException("pagoCospailId no existe.");
-        }
+        var pagoCospail = await GetPagoCospailWithQrAndDeudasAsync(request.PagoCospailId, cancellationToken)
+            ?? throw new ArgumentException("pagoCospailId no existe.");
 
         if (pagoCospail.Qr is null)
         {
@@ -200,17 +156,10 @@ public sealed class BancoEconomicoService(
             pagoCospail.Id
         );
 
-        var auth = await bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
-
-        if (string.IsNullOrWhiteSpace(auth.Token))
-        {
-            throw new InvalidOperationException(
-                "No se recibió token de autenticación desde Banco Económico."
-            );
-        }
+        var token = await GetBankTokenAsync(cancellationToken);
 
         var response = await bancoEconomicoQrClient.AnnulQrAsync(
-            auth.Token,
+            token,
             new AnnulQrBankRequestDto { QrId = qr.QrId },
             cancellationToken
         );
@@ -257,16 +206,9 @@ public sealed class BancoEconomicoService(
 
         logger.LogInformation("Consultando estado de QR. QrId: {QrId}", qrId);
 
-        var auth = await bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
+        var token = await GetBankTokenAsync(cancellationToken);
 
-        if (string.IsNullOrWhiteSpace(auth.Token))
-        {
-            throw new InvalidOperationException(
-                "No se recibió token de autenticación desde Banco Económico."
-            );
-        }
-
-        return await bancoEconomicoQrClient.GetQrStatusAsync(auth.Token, qrId, cancellationToken);
+        return await bancoEconomicoQrClient.GetQrStatusAsync(token, qrId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -283,16 +225,9 @@ public sealed class BancoEconomicoService(
 
         logger.LogInformation("Consultando QR pagados. Fecha: {Fecha}", fecha);
 
-        var auth = await bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
+        var token = await GetBankTokenAsync(cancellationToken);
 
-        if (string.IsNullOrWhiteSpace(auth.Token))
-        {
-            throw new InvalidOperationException(
-                "No se recibió token de autenticación desde Banco Económico."
-            );
-        }
-
-        return await bancoEconomicoQrClient.GetPaidQrListAsync(auth.Token, fecha, cancellationToken);
+        return await bancoEconomicoQrClient.GetPaidQrListAsync(token, fecha, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -325,6 +260,38 @@ public sealed class BancoEconomicoService(
             bankRequest.EndDate
         );
 
+        var token = await GetBankTokenAsync(cancellationToken);
+
+        return await bancoEconomicoQrClient.QueryMovementsAsync(token, bankRequest, cancellationToken);
+    }
+
+    /// <summary>
+    /// Construye el payload para Banco Económico a partir del pago de Cospail.
+    /// El importe, la moneda, la transacción y el vencimiento se resuelven en el servidor.
+    /// </summary>
+    private GenerateQrBankRequestDto BuildBankRequest(PagoCospail pagoCospail, string? branchCode)
+    {
+        var expiresAtUtc = DateTime.UtcNow.AddHours(qrSettings.QrValidityHours);
+        var dueDate = DateOnly.FromDateTime(BoliviaTime.FromUtc(expiresAtUtc));
+
+        return new GenerateQrBankRequestDto
+        {
+            TransactionId = NewId.V7().ToString("N"),
+            Currency = "BOB",
+            Amount = pagoCospail.TotalAmount,
+            Description = BuildDescription(pagoCospail),
+            DueDate = dueDate.ToString(PaymentDateTime.DateFormat, CultureInfo.InvariantCulture),
+            SingleUse = true,
+            ModifyAmount = false,
+            BranchCode = branchCode?.Trim()
+        };
+    }
+
+    private static string BuildDescription(PagoCospail pagoCospail) =>
+        string.Join(",", pagoCospail.Deudas.Select(x => x.CreditNumber).Distinct());
+
+    private async Task<string> GetBankTokenAsync(CancellationToken cancellationToken)
+    {
         var auth = await bancoEconomicoQrClient.AuthenticateAsync(cancellationToken);
 
         if (string.IsNullOrWhiteSpace(auth.Token))
@@ -334,8 +301,19 @@ public sealed class BancoEconomicoService(
             );
         }
 
-        return await bancoEconomicoQrClient.QueryMovementsAsync(auth.Token, bankRequest, cancellationToken);
+        return auth.Token;
     }
+
+    private Task<PagoCospail?> GetPagoCospailWithDeudasAsync(Guid pagoCospailId, CancellationToken cancellationToken) =>
+        dbContext
+            .PagosCospail.Include(x => x.Deudas)
+            .SingleOrDefaultAsync(x => x.Id == pagoCospailId, cancellationToken);
+
+    private Task<PagoCospail?> GetPagoCospailWithQrAndDeudasAsync(Guid pagoCospailId, CancellationToken cancellationToken) =>
+        dbContext
+            .PagosCospail.Include(x => x.Qr)
+            .Include(x => x.Deudas)
+            .SingleOrDefaultAsync(x => x.Id == pagoCospailId, cancellationToken);
 
     private async Task<bool> MemberHasActiveQrAsync(
         PagoCospail pagoCospail,
@@ -386,7 +364,7 @@ public sealed class BancoEconomicoService(
 
         logger.LogInformation("Notificación de pago QR recibida desde Banco Económico.");
 
-        var pagoQr = await dbContext.PagosQr.SingleOrDefaultAsync(x => x.QrId == (payment.QrId ?? string.Empty).Trim(), cancellationToken);
+        var pagoQr = await dbContext.PagosQr.SingleOrDefaultAsync(x => x.QrId == Clean(payment.QrId), cancellationToken);
 
         if (pagoQr is null)
         {
@@ -410,23 +388,7 @@ public sealed class BancoEconomicoService(
             pagoQr.MarkAsPaid(paymentAtUtc);
         }
 
-        dbContext.NotificacionesPagoQr.Add(new NotificacionPagoQr(
-            pagoQr,
-            (payment.QrId ?? string.Empty).Trim(),
-            (payment.TransactionId ?? string.Empty).Trim(),
-            (payment.PaymentDate ?? string.Empty).Trim(),
-            (payment.PaymentTime ?? string.Empty).Trim(),
-            paymentAtUtc,
-            payment.Currency,
-            payment.Amount,
-            (payment.SenderBankCode ?? string.Empty).Trim(),
-            (payment.SenderName ?? string.Empty).Trim(),
-            (payment.SenderDocumentId ?? string.Empty).Trim(),
-            (payment.SenderAccount ?? string.Empty).Trim(),
-            (payment.Description ?? string.Empty).Trim(),
-            string.IsNullOrWhiteSpace(payment.BranchCode) ? null : payment.BranchCode.Trim(),
-            DateTime.UtcNow
-        ));
+        dbContext.NotificacionesPagoQr.Add(ToNotificacion(pagoQr, payment, paymentAtUtc));
 
         var pagoCospail = await dbContext
             .PagosCospail.Include(x => x.Deudas)
@@ -456,6 +418,31 @@ public sealed class BancoEconomicoService(
             Message = string.Empty
         };
     }
+
+    private static string Clean(string? value) => (value ?? string.Empty).Trim();
+
+    private static NotificacionPagoQr ToNotificacion(
+        PagoQr pagoQr,
+        NotifyPaymentQrRequestDto.PaymentDto payment,
+        DateTime paymentAtUtc
+    ) =>
+        new(
+            pagoQr,
+            Clean(payment.QrId),
+            Clean(payment.TransactionId),
+            Clean(payment.PaymentDate),
+            Clean(payment.PaymentTime),
+            paymentAtUtc,
+            payment.Currency,
+            payment.Amount,
+            Clean(payment.SenderBankCode),
+            Clean(payment.SenderName),
+            Clean(payment.SenderDocumentId),
+            Clean(payment.SenderAccount),
+            Clean(payment.Description),
+            string.IsNullOrWhiteSpace(payment.BranchCode) ? null : payment.BranchCode.Trim(),
+            DateTime.UtcNow
+        );
 
     private async Task<bool> RegisterDebtsInCospailAsync(
         PagoCospail pagoCospail,
@@ -538,7 +525,7 @@ public sealed class BancoEconomicoService(
         var localPaymentDateTime = date.ToDateTime(time, DateTimeKind.Unspecified);
 
         // Banco Económico reporta la fecha y hora local de Bolivia (UTC-04:00).
-        return new DateTimeOffset(localPaymentDateTime, TimeSpan.FromHours(-4)).UtcDateTime;
+        return new DateTimeOffset(localPaymentDateTime, PaymentDateTime.BoliviaUtcOffset).UtcDateTime;
     }
 
     private static DateOnly ParsePaymentDate(string? paymentDate)
@@ -551,35 +538,9 @@ public sealed class BancoEconomicoService(
             return BoliviaTime.Today();
         }
 
-        if (DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        if (PaymentDateTime.TryParseDate(value, out var date))
         {
             return date;
-        }
-
-        if (DateTime.TryParseExact(
-            value,
-            "yyyy-MM-ddTHH:mm:ss",
-            CultureInfo.InvariantCulture,
-            DateTimeStyles.None,
-            out var dateTime))
-        {
-            return DateOnly.FromDateTime(dateTime);
-        }
-
-        // Formatos ISO 8601 que envía el banco en producción, ej. "2026-09-07T04:00:00Z"
-        // o con offset "2026-09-07T00:00:00-04:00" (con o sin milisegundos).
-        // Se extrae solo la parte de fecha; la hora se toma de paymentTime.
-        if (value.StartsWith("20", StringComparison.Ordinal) || value.StartsWith("19", StringComparison.Ordinal))
-        {
-            if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
-            {
-                return DateOnly.FromDateTime(dto.DateTime);
-            }
-
-            if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var fallback))
-            {
-                return DateOnly.FromDateTime(fallback);
-            }
         }
 
         throw new ArgumentException("payment.paymentDate debe tener formato yyyy-MM-dd o ISO 8601 (yyyy-MM-ddTHH:mm:ss).");
@@ -589,12 +550,12 @@ public sealed class BancoEconomicoService(
     {
         var timeValue = (paymentTime ?? string.Empty).Trim();
 
-        if (TimeOnly.TryParseExact(timeValue, "HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var time))
+        if (TimeOnly.TryParseExact(timeValue, PaymentDateTime.TimeFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var time))
         {
             return time;
         }
 
-        if (TimeOnly.TryParseExact(timeValue, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var shortTime))
+        if (TimeOnly.TryParseExact(timeValue, PaymentDateTime.ShortTimeFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var shortTime))
         {
             return shortTime;
         }

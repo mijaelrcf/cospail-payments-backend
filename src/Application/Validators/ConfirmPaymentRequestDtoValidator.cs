@@ -10,13 +10,9 @@ public sealed class ConfirmPaymentRequestDtoValidator : AbstractValidator<Confir
 {
     public ConfirmPaymentRequestDtoValidator()
     {
-        RuleFor(x => x.FixedCode)
-            .GreaterThan(0)
-            .WithMessage("fixedCode debe ser mayor a cero.");
+        RuleFor(x => x.FixedCode).FixedCode();
 
-        RuleFor(x => x.DocumentId)
-            .NotEmpty()
-            .WithMessage("documentId es requerido.");
+        RuleFor(x => x.DocumentId).DocumentId();
 
         RuleFor(x => x.Amount)
             .GreaterThan(0)

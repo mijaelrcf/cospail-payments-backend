@@ -25,36 +25,7 @@ public sealed class AdminReportService(IPaymentsDbContext dbContext) : IAdminRep
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize <= 0 ? DefaultPageSize : request.PageSize, 1, MaxPageSize);
 
-        IQueryable<PagoCospail> query = dbContext.PagosCospail.Include(x => x.Deudas);
-
-        if (request.From.HasValue)
-        {
-            var fromUtc = NormalizeUtc(request.From.Value);
-            query = query.Where(x => x.CreatedAtUtc >= fromUtc);
-        }
-
-        if (request.To.HasValue)
-        {
-            var toUtc = NormalizeUtc(request.To.Value).AddDays(1); // inclusivo hasta fin de día
-            query = query.Where(x => x.CreatedAtUtc < toUtc);
-        }
-
-        if (request.Status.HasValue)
-        {
-            query = query.Where(x => x.Status == request.Status.Value);
-        }
-
-        if (request.FixedCode.HasValue)
-        {
-            var fixedCode = request.FixedCode.Value;
-            query = query.Where(x => x.FixedCode == fixedCode);
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.DocumentId))
-        {
-            var documentId = request.DocumentId.Trim();
-            query = query.Where(x => x.DocumentId.Contains(documentId));
-        }
+        IQueryable<PagoCospail> query = ApplyFilters(dbContext.PagosCospail.Include(x => x.Deudas), request);
 
         var totalCount = await query.CountAsync(cancellationToken);
         var pageCount = (int)Math.Ceiling(totalCount / (double)pageSize);
@@ -95,35 +66,80 @@ public sealed class AdminReportService(IPaymentsDbContext dbContext) : IAdminRep
         AdminQrNotificationDto? notification = null;
         if (pagoCospail.PagoQrId.HasValue)
         {
-            var notif = await dbContext
-                .NotificacionesPagoQr.Where(n => n.PagoQrId == pagoCospail.PagoQrId.Value)
-                .OrderByDescending(n => n.ReceivedAtUtc)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (notif is not null)
-            {
-                notification = new AdminQrNotificationDto
-                {
-                    QrId = notif.QrId,
-                    TransactionId = notif.TransactionId,
-                    PaymentDate = notif.PaymentDate,
-                    PaymentTime = notif.PaymentTime,
-                    PaymentAtUtc = notif.PaymentAtUtc,
-                    Currency = notif.Currency,
-                    Amount = notif.Amount,
-                    SenderBankCode = notif.SenderBankCode,
-                    SenderName = notif.SenderName,
-                    SenderDocumentId = notif.SenderDocumentId,
-                    SenderAccount = notif.SenderAccount,
-                    Description = notif.Description,
-                    BranchCode = notif.BranchCode,
-                    ReceivedAtUtc = notif.ReceivedAtUtc
-                };
-            }
+            notification = await GetNotificationAsync(pagoCospail.PagoQrId.Value, cancellationToken);
         }
 
         return ToDetail(pagoCospail, notification);
     }
+
+    private static IQueryable<PagoCospail> ApplyFilters(
+        IQueryable<PagoCospail> query,
+        AdminPaymentReportRequestDto request
+    )
+    {
+        if (request.From.HasValue)
+        {
+            var fromUtc = NormalizeUtc(request.From.Value);
+            query = query.Where(x => x.CreatedAtUtc >= fromUtc);
+        }
+
+        if (request.To.HasValue)
+        {
+            var toUtc = NormalizeUtc(request.To.Value).AddDays(1); // inclusivo hasta fin de día
+            query = query.Where(x => x.CreatedAtUtc < toUtc);
+        }
+
+        if (request.Status.HasValue)
+        {
+            query = query.Where(x => x.Status == request.Status.Value);
+        }
+
+        if (request.FixedCode.HasValue)
+        {
+            var fixedCode = request.FixedCode.Value;
+            query = query.Where(x => x.FixedCode == fixedCode);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.DocumentId))
+        {
+            var documentId = request.DocumentId.Trim();
+            query = query.Where(x => x.DocumentId.Contains(documentId));
+        }
+
+        return query;
+    }
+
+    private async Task<AdminQrNotificationDto?> GetNotificationAsync(
+        Guid pagoQrId,
+        CancellationToken cancellationToken
+    )
+    {
+        var notif = await dbContext
+            .NotificacionesPagoQr.Where(n => n.PagoQrId == pagoQrId)
+            .OrderByDescending(n => n.ReceivedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return notif is null ? null : ToNotification(notif);
+    }
+
+    private static AdminQrNotificationDto ToNotification(NotificacionPagoQr notif) =>
+        new()
+        {
+            QrId = notif.QrId,
+            TransactionId = notif.TransactionId,
+            PaymentDate = notif.PaymentDate,
+            PaymentTime = notif.PaymentTime,
+            PaymentAtUtc = notif.PaymentAtUtc,
+            Currency = notif.Currency,
+            Amount = notif.Amount,
+            SenderBankCode = notif.SenderBankCode,
+            SenderName = notif.SenderName,
+            SenderDocumentId = notif.SenderDocumentId,
+            SenderAccount = notif.SenderAccount,
+            Description = notif.Description,
+            BranchCode = notif.BranchCode,
+            ReceivedAtUtc = notif.ReceivedAtUtc
+        };
 
     private static AdminPaymentReportItemDto ToReportItem(PagoCospail p) =>
         new()

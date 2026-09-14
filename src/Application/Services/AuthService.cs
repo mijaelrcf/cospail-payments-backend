@@ -30,19 +30,44 @@ public sealed class AuthService(
 
         loginValidator.ValidateAndThrow(request);
 
+        var user = GetUserOrThrow(request.Username, request.Password);
+        var options = authOptions.Value;
+        var now = DateTime.UtcNow;
+        var expiresAt = now.AddMinutes(options.TokenLifetimeMinutes);
+        var tokenString = CreateToken(user, options, now, expiresAt);
+
+        return Task.FromResult(
+            new AuthLoginResponseDto
+            {
+                Token = tokenString,
+                ExpiresAt = expiresAt,
+                DisplayName = user.DisplayName
+            }
+        );
+    }
+
+    private AuthUserOptions GetUserOrThrow(string username, string password)
+    {
         var user = authOptions
             .Value.Users.FirstOrDefault(u =>
-                string.Equals(u.Username, request.Username, StringComparison.OrdinalIgnoreCase)
+                string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase)
             );
 
-        if (user is null || !PasswordHasher.Verify(request.Password, user.PasswordHash))
+        if (user is null || !PasswordHasher.Verify(password, user.PasswordHash))
         {
             throw new UnauthorizedAccessException("Credenciales inválidas.");
         }
 
-        var options = authOptions.Value;
-        var expiresAt = DateTime.UtcNow.AddMinutes(options.TokenLifetimeMinutes);
+        return user;
+    }
 
+    private static string CreateToken(
+        AuthUserOptions user,
+        AuthOptions options,
+        DateTime now,
+        DateTime expiresAt
+    )
+    {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Username),
@@ -58,20 +83,11 @@ public sealed class AuthService(
             issuer: options.Issuer,
             audience: options.Audience,
             claims: claims,
-            notBefore: DateTime.UtcNow,
+            notBefore: now,
             expires: expiresAt,
             signingCredentials: credentials
         );
 
-        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-
-        return Task.FromResult(
-            new AuthLoginResponseDto
-            {
-                Token = tokenString,
-                ExpiresAt = expiresAt,
-                DisplayName = user.DisplayName
-            }
-        );
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
