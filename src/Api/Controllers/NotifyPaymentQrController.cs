@@ -9,19 +9,11 @@ namespace Api.Controllers;
 
 [ApiController]
 [Route("api/qrsimple/notifyPaymentQR")]
-public sealed class NotifyPaymentQrController : ControllerBase
+public sealed class NotifyPaymentQrController(
+    IBancoEconomicoService bancoEconomicoService,
+    ILogger<NotifyPaymentQrController> logger
+) : ControllerBase
 {
-    private readonly IBancoEconomicoService _bancoEconomicoService;
-    private readonly ILogger<NotifyPaymentQrController> _logger;
-
-    public NotifyPaymentQrController(
-        IBancoEconomicoService bancoEconomicoService,
-        ILogger<NotifyPaymentQrController> logger
-    )
-    {
-        _bancoEconomicoService = bancoEconomicoService;
-        _logger = logger;
-    }
 
     /// <summary>
     /// Recibe la notificación de pago de un QR enviada por Banco Económico.
@@ -35,7 +27,7 @@ public sealed class NotifyPaymentQrController : ControllerBase
     {
         try
         {
-            var response = await _bancoEconomicoService.HandlePaymentNotificationAsync(
+            var response = await bancoEconomicoService.HandlePaymentNotificationAsync(
                 request,
                 cancellationToken
             );
@@ -44,41 +36,36 @@ public sealed class NotifyPaymentQrController : ControllerBase
         }
         catch (ValidationException ex)
         {
-            _logger.LogWarning(
-                ex,
-                "Banco Económico envió una notificación QR inválida. Payload: {Payload}",
-                SerializePayload(request));
-            return Ok(new NotifyPaymentQrResponseDto
-            {
-                ResponseCode = 1,
-                Message = ex.Errors.FirstOrDefault()?.ErrorMessage ?? "Solicitud inválida."
-            });
+            LogInvalidPayload(ex, request);
+            return OkError(1, ex.Errors.FirstOrDefault()?.ErrorMessage ?? "Solicitud inválida.");
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(
-                ex,
-                "Banco Económico envió una notificación QR inválida. Payload: {Payload}",
-                SerializePayload(request));
-            return Ok(new NotifyPaymentQrResponseDto
-            {
-                ResponseCode = 1,
-                Message = ex.Message
-            });
+            LogInvalidPayload(ex, request);
+            return OkError(1, ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(
+            logger.LogError(
                 ex,
                 "Error procesando la notificación QR de Banco Económico. Payload: {Payload}",
                 SerializePayload(request));
-            return Ok(new NotifyPaymentQrResponseDto
-            {
-                ResponseCode = 99,
-                Message = "Ocurrió un error procesando la notificación."
-            });
+            return OkError(99, "Ocurrió un error procesando la notificación.");
         }
     }
+
+    private OkObjectResult OkError(int responseCode, string message) =>
+        Ok(new NotifyPaymentQrResponseDto
+        {
+            ResponseCode = responseCode,
+            Message = message
+        });
+
+    private void LogInvalidPayload(Exception ex, NotifyPaymentQrRequestDto request) =>
+        logger.LogWarning(
+            ex,
+            "Banco Económico envió una notificación QR inválida. Payload: {Payload}",
+            SerializePayload(request));
 
     /// <summary>
     /// Serializa el payload recibido a JSON compacto (una línea) para diagnóstico.

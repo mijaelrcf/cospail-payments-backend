@@ -39,14 +39,14 @@ public class AdminController(IAdminReportService adminReportService) : Controlle
         CancellationToken cancellationToken = default
     )
     {
-        if (from.HasValue && to.HasValue && from.Value > to.Value)
+        if (InvalidDateRange(from, to) is { } rangeError)
         {
-            return BadRequest("La fecha de inicio no puede ser posterior a la fecha de fin.");
+            return rangeError;
         }
 
-        if (fixedCode.HasValue && fixedCode.Value <= 0)
+        if (InvalidFixedCode(fixedCode) is { } fixedCodeError)
         {
-            return BadRequest("fixedCode debe ser mayor a cero.");
+            return fixedCodeError;
         }
 
         var request = new AdminPaymentReportRequestDto
@@ -82,4 +82,14 @@ public class AdminController(IAdminReportService adminReportService) : Controlle
 
         return Ok(result);
     }
+
+    private IActionResult? InvalidDateRange(DateTime? from, DateTime? to) =>
+        from.HasValue && to.HasValue && from.Value > to.Value
+            ? BadRequest("La fecha de inicio no puede ser posterior a la fecha de fin.")
+            : null;
+
+    private IActionResult? InvalidFixedCode(int? fixedCode) =>
+        fixedCode.HasValue && fixedCode.Value <= 0
+            ? BadRequest("fixedCode debe ser mayor a cero.")
+            : null;
 }

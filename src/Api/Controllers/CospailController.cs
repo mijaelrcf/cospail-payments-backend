@@ -8,14 +8,8 @@ namespace Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class CospailController : ControllerBase
+public class CospailController(ICospailService cospailService) : ControllerBase
 {
-    private readonly ICospailService _cospailService;
-
-    public CospailController(ICospailService cospailService)
-    {
-        _cospailService = cospailService;
-    }
 
     /// <summary>
     /// Consulta la deuda de un socio mediante código fijo y documento de identidad o NIT.
@@ -31,17 +25,17 @@ public class CospailController : ControllerBase
         CancellationToken cancellationToken
     )
     {
-        if (fixedCode <= 0)
+        if (InvalidFixedCode(fixedCode) is { } fixedCodeError)
         {
-            return BadRequest("fixedCode debe ser mayor a cero.");
+            return fixedCodeError;
         }
 
-        if (string.IsNullOrWhiteSpace(documentId))
+        if (MissingDocumentId(documentId) is { } documentIdError)
         {
-            return BadRequest("documentId es requerido.");
+            return documentIdError;
         }
 
-        var result = await _cospailService.GetMemberDebtByDocumentAsync(
+        var result = await cospailService.GetMemberDebtByDocumentAsync(
             fixedCode,
             documentId,
             cancellationToken
@@ -62,7 +56,7 @@ public class CospailController : ControllerBase
         CancellationToken cancellationToken
     )
     {
-        var result = await _cospailService.ConfirmPaymentAsync(request, cancellationToken);
+        var result = await cospailService.ConfirmPaymentAsync(request, cancellationToken);
 
         return Ok(result);
     }
@@ -79,7 +73,7 @@ public class CospailController : ControllerBase
         CancellationToken cancellationToken
     )
     {
-        var result = await _cospailService.InitiatePaymentAsync(request, cancellationToken);
+        var result = await cospailService.InitiatePaymentAsync(request, cancellationToken);
 
         return Ok(result);
     }
@@ -96,7 +90,7 @@ public class CospailController : ControllerBase
         CancellationToken cancellationToken
     )
     {
-        var result = await _cospailService.GetPaymentStatusAsync(pagoCospailId, cancellationToken);
+        var result = await cospailService.GetPaymentStatusAsync(pagoCospailId, cancellationToken);
 
         return Ok(result);
     }
@@ -116,17 +110,17 @@ public class CospailController : ControllerBase
         CancellationToken cancellationToken
     )
     {
-        if (fixedCode <= 0)
+        if (InvalidFixedCode(fixedCode) is { } fixedCodeError)
         {
-            return BadRequest("fixedCode debe ser mayor a cero.");
+            return fixedCodeError;
         }
 
-        if (string.IsNullOrWhiteSpace(documentId))
+        if (MissingDocumentId(documentId) is { } documentIdError)
         {
-            return BadRequest("documentId es requerido.");
+            return documentIdError;
         }
 
-        var result = await _cospailService.GetActiveQrAsync(
+        var result = await cospailService.GetActiveQrAsync(
             fixedCode,
             documentId,
             cancellationToken
@@ -153,12 +147,12 @@ public class CospailController : ControllerBase
         CancellationToken cancellationToken = default
     )
     {
-        if (fixedCode <= 0)
+        if (InvalidFixedCode(fixedCode) is { } fixedCodeError)
         {
-            return BadRequest("fixedCode debe ser mayor a cero.");
+            return fixedCodeError;
         }
 
-        var result = await _cospailService.GetLast6MonthsInvoicesAsync(
+        var result = await cospailService.GetLast6MonthsInvoicesAsync(
             fixedCode,
             cancellationToken
         );
@@ -184,7 +178,7 @@ public class CospailController : ControllerBase
             return BadRequest("creditNumber debe ser mayor a cero.");
         }
 
-        var result = await _cospailService.GetInvoicePdfAsync(
+        var result = await cospailService.GetInvoicePdfAsync(
             creditNumber,
             cancellationToken
         );
@@ -206,12 +200,12 @@ public class CospailController : ControllerBase
         CancellationToken cancellationToken = default
     )
     {
-        if (fixedCode <= 0)
+        if (InvalidFixedCode(fixedCode) is { } fixedCodeError)
         {
-            return BadRequest("fixedCode debe ser mayor a cero.");
+            return fixedCodeError;
         }
 
-        var result = await _cospailService.GetRecentPaymentsAsync(
+        var result = await cospailService.GetRecentPaymentsAsync(
             fixedCode,
             status,
             cancellationToken
@@ -219,4 +213,10 @@ public class CospailController : ControllerBase
 
         return Ok(result);
     }
+
+    private IActionResult? InvalidFixedCode(int fixedCode) =>
+        fixedCode <= 0 ? BadRequest("fixedCode debe ser mayor a cero.") : null;
+
+    private IActionResult? MissingDocumentId(string documentId) =>
+        string.IsNullOrWhiteSpace(documentId) ? BadRequest("documentId es requerido.") : null;
 }

@@ -30,32 +30,35 @@ public class GlobalExceptionHandler
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(ex, "Validation error");
-            await WriteProblemDetailsAsync(
+            await HandleKnownErrorAsync(
                 context,
+                ex,
                 StatusCodes.Status400BadRequest,
                 "Validation Error",
-                ex.Message
+                ex.Message,
+                "Validation error"
             );
         }
         catch (KeyNotFoundException ex)
         {
-            _logger.LogWarning(ex, "Resource not found");
-            await WriteProblemDetailsAsync(
+            await HandleKnownErrorAsync(
                 context,
+                ex,
                 StatusCodes.Status404NotFound,
                 "Not Found",
-                ex.Message
+                ex.Message,
+                "Resource not found"
             );
         }
         catch (UnauthorizedAccessException ex)
         {
-            _logger.LogWarning(ex, "Unauthorized");
-            await WriteProblemDetailsAsync(
+            await HandleKnownErrorAsync(
                 context,
+                ex,
                 StatusCodes.Status401Unauthorized,
                 "Unauthorized",
-                ex.Message
+                ex.Message,
+                "Unauthorized"
             );
         }
         catch (Exception ex)
@@ -68,6 +71,19 @@ public class GlobalExceptionHandler
                 "An unexpected error occurred."
             );
         }
+    }
+
+    private async Task HandleKnownErrorAsync(
+        HttpContext context,
+        Exception exception,
+        int statusCode,
+        string title,
+        string detail,
+        string logMessage
+    )
+    {
+        _logger.LogWarning(exception, "{Message}", logMessage);
+        await WriteProblemDetailsAsync(context, statusCode, title, detail);
     }
 
     private static async Task WriteValidationProblemDetailsAsync(

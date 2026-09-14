@@ -7,14 +7,8 @@ namespace Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class BancoEconomicoController : ControllerBase
+public class BancoEconomicoController(IBancoEconomicoService bancoEconomicoService) : ControllerBase
 {
-    private readonly IBancoEconomicoService _bancoEconomicoService;
-
-    public BancoEconomicoController(IBancoEconomicoService bancoEconomicoService)
-    {
-        _bancoEconomicoService = bancoEconomicoService;
-    }
 
     /// <summary>
     /// Genera un código QR en Banco Económico.
@@ -25,7 +19,7 @@ public class BancoEconomicoController : ControllerBase
         [FromBody] GenerateQrRequestDto request,
         CancellationToken cancellationToken)
     {
-        var response = await _bancoEconomicoService.GenerateQrAsync(request, cancellationToken);
+        var response = await bancoEconomicoService.GenerateQrAsync(request, cancellationToken);
         return Ok(response);
     }
 
@@ -38,7 +32,7 @@ public class BancoEconomicoController : ControllerBase
         [FromBody] AnnulQrRequestDto request,
         CancellationToken cancellationToken)
     {
-        var response = await _bancoEconomicoService.AnnulQrAsync(request, cancellationToken);
+        var response = await bancoEconomicoService.AnnulQrAsync(request, cancellationToken);
         return Ok(response);
     }
 
@@ -51,7 +45,7 @@ public class BancoEconomicoController : ControllerBase
         [FromRoute] string qrId,
         CancellationToken cancellationToken)
     {
-        var response = await _bancoEconomicoService.GetQrStatusAsync(
+        var response = await bancoEconomicoService.GetQrStatusAsync(
             new QrStatusRequestDto { QrId = qrId },
             cancellationToken);
         return Ok(response);
@@ -66,7 +60,7 @@ public class BancoEconomicoController : ControllerBase
         [FromRoute] string fecha,
         CancellationToken cancellationToken)
     {
-        var response = await _bancoEconomicoService.GetPaidQrListAsync(
+        var response = await bancoEconomicoService.GetPaidQrListAsync(
             new PaidQrListRequestDto { Fecha = fecha },
             cancellationToken);
         return Ok(response);
@@ -81,7 +75,7 @@ public class BancoEconomicoController : ControllerBase
         [FromBody] QueryMovementsRequestDto request,
         CancellationToken cancellationToken)
     {
-        var response = await _bancoEconomicoService.QueryMovementsAsync(request, cancellationToken);
+        var response = await bancoEconomicoService.QueryMovementsAsync(request, cancellationToken);
         return Ok(response);
     }
 }
