@@ -15,12 +15,14 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configurar Serilog: reemplaza los proveedores por defecto y escribe en consola y en archivo (logs/api-YYYYMMDD.log)
+// Configurar Serilog: consola siempre; archivo solo en Development.
+// En producción los logs van a stdout para que los capture systemd/Docker.
 builder.Logging.ClearProviders();
 builder
     .Host
     .UseSerilog(
         (context, services, configuration) =>
+        {
             configuration
                 .ReadFrom
                 .Configuration(context.Configuration)
@@ -29,9 +31,13 @@ builder
                 .Enrich
                 .FromLogContext()
                 .WriteTo
-                .Console()
-                .WriteTo
-                .File("logs/api-.log", rollingInterval: RollingInterval.Day)
+                .Console();
+
+            if (context.HostingEnvironment.IsDevelopment())
+            {
+                configuration.WriteTo.File("logs/api-.log", rollingInterval: RollingInterval.Day);
+            }
+        }
     );
 
 // Add services to the container.
@@ -200,8 +206,9 @@ builder
 // Health checks: verifica conectividad con la base de datos
 builder.Services.AddHealthChecks().AddDbContextCheck<PaymentsDbContext>("database");
 
-// Rate limiting: protege POST /api/analytics/visits (contador puro, sin PII).
-// 60 req/min por IP alcanza para uso normal (1 beacon por sesión) y frena abuso/bots.
+// Rate limiting por IP (ventana fija, sin cola, 429 al exceder).
+// - AnalyticsVisits: 60 req/min (1 beacon por sesión, frena bots).
+// - AdminLogin: 10 req/min (frena fuerza bruta al login del panel).
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter(
@@ -209,6 +216,15 @@ builder.Services.AddRateLimiter(options =>
         options =>
         {
             options.PermitLimit = 60;
+            options.Window = TimeSpan.FromMinutes(1);
+            options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+            options.QueueLimit = 0;
+        });
+    options.AddFixedWindowLimiter(
+        policyName: "AdminLogin",
+        options =>
+        {
+            options.PermitLimit = 10;
             options.Window = TimeSpan.FromMinutes(1);
             options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
             options.QueueLimit = 0;

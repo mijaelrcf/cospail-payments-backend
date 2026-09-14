@@ -232,7 +232,7 @@ El frontend consume en este orden: `active-qr` → `member-debt-by-document` →
 
 | Método | Ruta | Propósito |
 | --- | --- | --- |
-| POST | `/api/admin/auth/login` | Login `{ username, password }` → `{ token, expiresAt, displayName }`. |
+| POST | `/api/admin/auth/login` | Login `{ username, password }` → `{ token, expiresAt, displayName }`. Con rate-limit (10 req/min por IP, `429` al exceder). |
 | GET | `/api/admin/payments/report` | Reporte paginado de `pagos_cospail` (filtros `from,to,status,fixedCode,documentId,page,pageSize`). |
 | GET | `/api/admin/payments/{pagoCospailId}` | Detalle + notificación QR para conciliación. |
 
@@ -240,7 +240,10 @@ El frontend consume en este orden: `active-qr` → `member-debt-by-document` →
 
 | Método | Ruta | Propósito |
 | --- | --- | --- |
-| GET | `/health` | Liveness + conectividad DB. |
+| GET | `/health` | Liveness + conectividad DB (también `HEALTHCHECK` del Dockerfile). |
+
+Logs: consola siempre; archivo `logs/api-*.log` solo en Development. En producción los
+captura systemd/Docker vía stdout.
 
 Ejemplo callback (`POST /api/qrsimple/notifyPaymentQR` → `200 { "responseCode": 0, "message": "" }`):
 
