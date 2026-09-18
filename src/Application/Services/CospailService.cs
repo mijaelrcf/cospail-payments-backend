@@ -240,8 +240,10 @@ public sealed class CospailService(
         var pagos = await dbContext
             .PagosCospail
             .Include(x => x.Deudas)
+            .Include(x => x.Qr)
             .Where(x => x.FixedCode == fixedCode && x.Status == status)
-            .OrderByDescending(x => x.CreatedAtUtc)
+            .OrderBy(x => x.Qr == null || x.Qr.PaidAtUtc == null)
+            .ThenByDescending(x => x.Qr!.PaidAtUtc)
             .Take(5)
             .ToListAsync(cancellationToken);
 
@@ -250,6 +252,7 @@ public sealed class CospailService(
             {
                 PagoCospailId = x.Id,
                 TotalAmount = x.TotalAmount,
+                PaidAtUtc = x.Qr?.PaidAtUtc,
                 Debts = x.Deudas.Select(ToRecentDebtDto).ToList()
             })
             .ToList();
