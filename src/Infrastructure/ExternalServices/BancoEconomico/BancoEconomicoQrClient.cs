@@ -1,6 +1,7 @@
 ﻿using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Application.Common.Exceptions;
 using Application.DTOs.BancoEconomico.Requests;
 using Application.DTOs.BancoEconomico.Responses;
 using Application.Interfaces.External;
@@ -303,7 +304,8 @@ public sealed class BancoEconomicoQrClient : IBancoEconomicoQrClient
                 result.Message
             );
 
-            throw new InvalidOperationException(
+            throw new BankOperationException(
+                result.ResponseCode,
                 $"{rejectedError}. Código: {result.ResponseCode}, Mensaje: {result.Message}"
             );
         }

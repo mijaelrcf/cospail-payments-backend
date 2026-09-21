@@ -1,4 +1,5 @@
-﻿using FluentValidation;
+﻿using Application.Common.Exceptions;
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Middleware;
@@ -59,6 +60,21 @@ public class GlobalExceptionHandler
                 "Unauthorized",
                 ex.Message,
                 "Unauthorized"
+            );
+        }
+        catch (BankOperationException ex)
+        {
+            // Rechazo funcional del banco (ej. mantenimiento): el mensaje ya
+            // viene en español y apto para el usuario, se propaga en el detalle
+            // con 502 en lugar de ocultarlo como 500 genérico. El detalle
+            // completo queda en el log para diagnóstico.
+            await HandleKnownErrorAsync(
+                context,
+                ex,
+                StatusCodes.Status502BadGateway,
+                "Error del banco",
+                ex.Message,
+                "Rechazo funcional de Banco Económico"
             );
         }
         catch (Exception ex)
