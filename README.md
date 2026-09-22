@@ -176,8 +176,8 @@ El frontend consume en este orden: `active-qr` → `member-debt-by-document` →
      "debts": [{ "creditNumber": 456, "type": 1, "amount": 100.00 }] }
    ```
 
-4. `POST /api/BancoEconomico/generate-qr` — solo `{ "pagoCospailId": "…", "branchCode": "001" }`. La API calcula total, fija `BOB`, genera `transactionId`, define `dueDate` por `QrValidityHours`, arma la descripción y envía `singleUse: true, modifyAmount: false`. Responde `qrId` + `qrImage`. Pago → `QRGenerado`.
-5. Callback `POST /api/qrsimple/notifyPaymentQR` (Banco Económico) — valida, marca pago/deudas `Pagado`, persiste la notificación en `notificaciones_pago_qr` y registra cada cobro en COSPAIL (`grabarCobrosWEB`). Todo OK → `PagoRegistrado`; falla alguno → queda `Pagado` (reintento/conciliación). Ver con `GET /api/Cospail/payments/{pagoCospailId}`.
+4. `POST /api/BancoEconomico/generate-qr` — solo `{ "pagoCospailId": "…", "branchCode": "001" }`. La API calcula total, fija `BOB`, genera `transactionId` propio (32 hex, guardado en `pagos_qr.transaction_id`), define `dueDate` por `QrValidityHours`, arma la descripción y envía `singleUse: true, modifyAmount: false`. Responde `qrId` + `qrImage` (el `qrId` lo genera el banco y se guarda en `pagos_qr.qr_id`). Pago → `QRGenerado`.
+5. Callback `POST /api/qrsimple/notifyPaymentQR` (Banco Económico) — valida por `payment.qrId`, marca pago/deudas `Pagado`, persiste la notificación en `notificaciones_pago_qr` y registra cada cobro en COSPAIL (`grabarCobrosWEB`). Todo OK → `PagoRegistrado`; falla alguno → queda `Pagado` (reintento/conciliación). Ver con `GET /api/Cospail/payments/{pagoCospailId}`.
 6. `POST /api/BancoEconomico/annul-qr` (`{ "pagoCospailId": "…" }`) — anula ante el banco (`DELETE api/qrsimple/cancelQR`); QR, pago y deudas → `Anulado`. Para pagar luego, nuevo `initiate`.
 
 > `generate-qr` requiere un `pagoCospailId` en `Pendiente`; no se genera QR directo desde deudas.
@@ -257,6 +257,8 @@ Ejemplo callback (`POST /api/qrsimple/notifyPaymentQR` → `200 { "responseCode"
 ```
 
 `paymentDate` admite `yyyy-MM-dd` o `yyyy-MM-ddTHH:mm:ss`; `branchCode` opcional.
+
+> **IDs de `pagos_qr`:** `id` (uuid interno, PK para FKs) + `transaction_id` (nuestro, 32 hex enviado en `generateQR`) + `qr_id` (lo genera el banco). El `transactionId` del callback (`notificaciones_pago_qr.transaction_id`, ej. `18459506`) es el del banco y **no coincide** con `pagos_qr.transaction_id`. Ver detalle en `docs/ER.md`.
 
 ## 7. Panel de administración
 
